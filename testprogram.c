@@ -38,6 +38,8 @@ int main()
     aligned sse3d_vector_t up_vec   = { 0.0f,  1.0f,  0.0f, 0.0f };
     aligned sse3d_vector_t original = { 1.0f,  2.0f,  3.0f, 1.0f };
 
+    int i;
+    int nr_matrix_tests = 10000000;
     int nr_vec = 30000000;
     sse3d_vector_t* vector_list;
     clock_t start, end;
@@ -80,9 +82,18 @@ int main()
     sse3d_multiply_vectors(vector_list, &lookat, vector_list, nr_vec);
     end = clock();
 
-    printf("Vertices per second: %0.0f", 1.0f / ((end-start) / (float)CLOCKS_PER_SEC) * nr_vec);
+    printf("Vertices per second: %0.0f\n", 1.0f / ((end-start) / (float)CLOCKS_PER_SEC) * nr_vec);
 
     aligned_free(vector_list);
+
+    start = clock();
+    for (i=0; i<nr_matrix_tests; i++)
+    {
+        sse3d_multiply_matrix(&matrix, &matrix, &matrix);
+    }
+    end = clock();
+
+    printf("Matrix muliplications per second: %0.0f\n", 1.0f / ((end-start) / (float)CLOCKS_PER_SEC) * nr_matrix_tests);
 
     getchar();
     return 0;
