@@ -24,10 +24,6 @@
 #include <math.h>
 #include <string.h>
 
-#ifndef RC2I
-#define RC2I(row, col) (row * 4 + col)
-#endif 
-
 typedef struct
 {
     union
