@@ -349,17 +349,17 @@ float sse3d_dotproduct_vector(sse3d_vector_t *src_a, sse3d_vector_t *src_b)
     aligned sse3d_m128_t result;
     __asm
     {
-        lea edi, result;
-        mov esi, src_a;
-        movaps xmm0, [esi];
-        mov esi, src_b;
-        movaps xmm1, [esi];
-        mulps  xmm0, xmm1;
-        haddps xmm0, xmm0;
-        haddps xmm0, xmm0;
-        movaps [edi], xmm0;
+        lea edi, result         ;// edi = result
+        mov esi, src_a          ;// esi = src_a
+        movaps xmm0, [esi]      ;// xmm0 = src_a
+        mov esi, src_b          ;// esi = src_b
+        movaps xmm1, [esi]      ;// xmm1 = src_b
+        mulps  xmm0, xmm1;      ;// xmm0 = (a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w)
+        haddps xmm0, xmm0;      ;// xmm0 = (r.x + r.y, r.z + r.w, r.x + r.y, r.z + r.w)
+        haddps xmm0, xmm0;      ;// xmm0 = (r.x + r.y + r.z + r.w, ... times 4)
+        movaps [edi], xmm0;     ;// all f32 values in xmm0 now hold the dotproduct
     }
-    return result.f32[0];
+    return result.f32[0];       // return one of the f32 values
 }
 
 /* ------------------------------------------------------------------------------------ *
