@@ -17,6 +17,10 @@
 #define aligned_free(ptr) _aligned_free(ptr)
 #endif
 
+#ifndef naked
+#define naked __declspec(naked)
+#endif
+
 #include <math.h>
 #include <string.h>
 
@@ -271,6 +275,69 @@ void sse3d_translation_matrix(sse3d_matrix_t *dst, float dx, float dy, float dz)
 }
 
 
+/* ---------------------------------------------- *
+ * Naked function to calculate the dotproduct     *
+ * of xmm0 and xmm1 and store the result in xmm0  *
+ * ---------------------------------------------- */
+naked _sse3d_dotproduct_xmm0_xmm1()
+{
+    __asm
+    {
+        mulps  xmm0, xmm1
+        haddps xmm0, xmm0
+        haddps xmm0, xmm0
+        ret
+    }
+}
+
+
+/* ---------------------------------------------- *
+ * Naked function to calculate the crossproduct   *
+ * of xmm0 and xmm1 and store the result in xmm0  *
+ * We calculate the cross product like            *  
+ * xmm0.x = xmm0.y * xmm1.z - xmm0.z * xmm1.y,    *
+ * xmm0.y = xmm0.z * xmm1.x - xmm0.x * xmm1.z,    *
+ * xmm0.z = xmm0.x * xmm1.y - xmm0.y * xmm1.x     *
+ * ---------------------------------------------- */
+naked _sse3d_crossproduct_xmm0_xmm1()
+{
+    __asm
+    {
+        movaps xmm2, xmm0       ;// xmm4 = source vector a
+        movaps xmm3, xmm1       ;// xmm5 = source vector b
+        
+        shufps xmm0, xmm0, 0xC9 ;// 0xC9 = 3,0,2,1 => xmm0 = (a.y, a.z, a.x, a.w)
+        shufps xmm2, xmm2, 0xD2 ;// 0xD3 = 3,1,0,2 => xmm4 = (a.z, a.x, a.y, a.w)
+        shufps xmm1, xmm1, 0xC9 ;// 0xC9 = 3,0,2,1 => xmm5 = (b.y, b.z, b.x, b.w)
+        shufps xmm3, xmm3, 0xD2 ;// 0xD3 = 3,1,0,2 => xmm1 = (b.z, b.x, b.y, b.w)
+        
+        mulps  xmm0, xmm3       ;// xmm0 = (a.y * b.z, a.z * b.x, a.x * b.y, _w)
+        mulps  xmm1, xmm2       ;// xmm1 = (a.z * b.y, a.x * b.z, a.y * b.x, _w)
+        subps  xmm0, xmm1       ;// xmm0 = (a.y*b.z - a.z*b.y, 
+                                ;//         a.z*b.x - a.x*b.z, 
+                                ;//         a.x*b.y - a.y*b.x)
+        ret
+    }
+}
+
+/* ---------------------------------------------- *
+ * Naked function to normalize xmm0               *
+ * ---------------------------------------------- */
+naked _sse3d_normalize_xmm0()
+{
+    __asm
+    {
+        movaps  xmm2, xmm0      ;// xmm4 = source vector (x,y,z,0)
+        mulps   xmm2, xmm2      ;// xmm4 = (x^2, y^2, z^2, 0)
+        haddps  xmm2, xmm2      ;// xmm4 = (x^2 + y^2, z^2 + 0, x^2 + y^2, z^2 + 0)
+        haddps  xmm2, xmm2      ;// xmm4 = (x^2 + y^2 + z^2 + 0, ... times 4)
+        rsqrtps xmm2, xmm2      ;// xmm4 = (1 / sqrt(x^2 + y^2 + z^2), ... times 4)
+        mulps   xmm0, xmm2      ;// xmm0 = for (n in x,y,z,w) n = n/sqrt(x^2 + y^2 + z^2)
+        ret
+    }
+}
+
+
 /* -------------------------------------------------------------------- *
  * Normalize a number of vectors                                        *    
  * Parameters:                                                          *
@@ -289,13 +356,9 @@ void sse3d_normalize_vectors(sse3d_vector_t *dst, sse3d_vector_t *src, int nr_ve
 
         normalize:
         movaps  xmm0, [esi]     ;// xmm0 = current source vector (x,y,z,0)
-        movaps  xmm4, xmm0      ;// xmm4 = current source vector (x,y,z,0)
 
-        mulps   xmm4, xmm4      ;// xmm4 = (x^2, y^2, z^2, 0)
-        haddps  xmm4, xmm4      ;// xmm4 = (x^2 + y^2, z^2 + 0, x^2 + y^2, z^2 + 0)
-        haddps  xmm4, xmm4      ;// xmm4 = (x^2 + y^2 + z^2 + 0, ... times 4)
-        rsqrtps xmm4, xmm4      ;// xmm4 = (1 / sqrt(x^2 + y^2 + z^2), ... times 4)
-        mulps   xmm0, xmm4      ;// xmm0 = for (n in x,y,z,w) n = n/sqrt(x^2 + y^2 + z^2)
+        call _sse3d_normalize_xmm0;
+    
         movaps [edi], xmm0      ;// xmm0 now holds the normalized vector, store in current destination vector
         add esi, 0x10           ;// increment esi to the next vector
         add edi, 0x10           ;// increment edi to the next vector
@@ -315,27 +378,13 @@ void sse3d_crossproduct_vector(sse3d_vector_t *dst, sse3d_vector_t *src_a, sse3d
 {
     __asm
     {
-        mov edi, dst            ;// edi = destination vector
         mov esi, src_a          ;// esi = source vector a
+        mov edi, src_b          ;// edi = source vector b
         movaps xmm0, [esi]      ;// xmm0 = source vector a (a.x, a.y, a.z, a.w)
-        mov esi, src_b          ;// esi = source vector b
-        movaps xmm1, [esi]      ;// xmm1 = source vector b (b.x, b.y, b.z, b.w)
-                                ;// We calculate the cross product like (a.y*b.z - a.z*b.y, 
-                                ;//                                      a.z*b.x - a.x*b.z, 
-                                ;//                                      a.x*b.y - a.y*b.x)
-        movaps xmm4, xmm0       ;// xmm4 = source vector a
-        movaps xmm5, xmm1       ;// xmm5 = source vector b
-        
-        shufps xmm0, xmm0, 0xC9 ;// 0xC9 = 3,0,2,1 => xmm0 = (a.y, a.z, a.x, a.w)
-        shufps xmm4, xmm4, 0xD2 ;// 0xD3 = 3,1,0,2 => xmm4 = (a.z, a.x, a.y, a.w)
-        shufps xmm1, xmm1, 0xC9 ;// 0xC9 = 3,0,2,1 => xmm5 = (b.y, b.z, b.x, b.w)
-        shufps xmm5, xmm5, 0xD2 ;// 0xD3 = 3,1,0,2 => xmm1 = (b.z, b.x, b.y, b.w)
-        
-        mulps  xmm0, xmm5       ;// xmm0 = (a.y * b.z, a.z * b.x, a.x * b.y, _w)
-        mulps  xmm1, xmm4       ;// xmm1 = (a.z * b.y, a.x * b.z, a.y * b.x, _w)
-        subps  xmm0, xmm1       ;// xmm0 = (a.y*b.z - a.z*b.y, 
-                                ;//         a.z*b.x - a.x*b.z, 
-                                ;//         a.x*b.y - a.y*b.x)
+        movaps xmm1, [edi]      ;// xmm1 = source vector b (b.x, b.y, b.z, b.w)
+        call _sse3d_crossproduct_xmm0_xmm1;
+    
+        mov edi, dst            ;// edi = destination vector
         movaps [edi], xmm0      ;// xmm0 now holds the cross product, store it in the destination vector
     }
 }
@@ -347,16 +396,17 @@ void sse3d_crossproduct_vector(sse3d_vector_t *dst, sse3d_vector_t *src_a, sse3d
 float sse3d_dotproduct_vector(sse3d_vector_t *src_a, sse3d_vector_t *src_b)
 {
     aligned sse3d_m128_t result;
+    
     __asm
     {
-        lea edi, result         ;// edi = result
         mov esi, src_a          ;// esi = src_a
+        mov edi, src_b          ;// edi = src_b
         movaps xmm0, [esi]      ;// xmm0 = src_a
-        mov esi, src_b          ;// esi = src_b
-        movaps xmm1, [esi]      ;// xmm1 = src_b
-        mulps  xmm0, xmm1;      ;// xmm0 = (a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w)
-        haddps xmm0, xmm0;      ;// xmm0 = (r.x + r.y, r.z + r.w, r.x + r.y, r.z + r.w)
-        haddps xmm0, xmm0;      ;// xmm0 = (r.x + r.y + r.z + r.w, ... times 4)
+        movaps xmm1, [edi]      ;// xmm1 = src_b
+    
+        call _sse3d_dotproduct_xmm0_xmm1;
+    
+        lea edi, result         ;// edi = result
         movaps [edi], xmm0;     ;// all f32 values in xmm0 now hold the dotproduct
     }
     return result.f32[0];       // return one of the f32 values
@@ -371,45 +421,40 @@ float sse3d_dotproduct_vector(sse3d_vector_t *src_a, sse3d_vector_t *src_b)
  * [camera_upvector] A pointer to the vector containing the upvector of the camera.     *
  * ------------------------------------------------------------------------------------ */
 void sse3d_lookat_matrix(sse3d_matrix_t *dst, sse3d_vector_t *camera_position, sse3d_vector_t *lookat_position, sse3d_vector_t *camera_upvector)
-{
-    // map vectors into matrix
-    sse3d_vector_t *side    = ((sse3d_vector_t*) dst) + 0x00;
-    sse3d_vector_t *up      = ((sse3d_vector_t*) dst) + 0x01;
-    sse3d_vector_t *forward = ((sse3d_vector_t*) dst) + 0x02;
-    
+{    
     aligned sse3d_matrix_t translation;
 
     __asm 
     {
-        mov edi, forward                ;// edi  = destination forward vector (z direction)
-        mov esi, camera_position        ;// esi  = camera position
-        movaps xmm0, [esi]              ;// xmm0 = camera position
-        mov esi, lookat_position        ;// esi  = lookat position
-        movaps xmm1, [esi]              ;// xmm1 = lookat position
-        subps  xmm1, xmm0               ;// xmm1 = lookat - camera = forward vector
-        movaps [edi], xmm1;             ;// store the forward vector
+        mov esi, camera_position            ;// esi  = camera position
+        mov edi, lookat_position            ;// edi  = lookat position     
+        movaps xmm1, [esi]                  ;// xmm1 = camera position
+        movaps xmm0, [edi]                  ;// xmm0 = lookat position
+        subps  xmm0, xmm1                   ;// xmm0 = lookat - camera = forward vector
+        call _sse3d_normalize_xmm0          ;// xmm0 = normalize(forward)
+        movaps xmm7, xmm0                   ;// xmm7 = forward
+        xorps  xmm6, xmm6                   ;// xmm6 = 0
+        subps  xmm6, xmm0                   ;// xmm6 = -forward
+        
+        mov esi, camera_upvector            ;// esi = camera_upvector
+        movaps xmm1, [esi]                  ;// xmm1 = camera_upvector
+        call _sse3d_crossproduct_xmm0_xmm1  ;// xmm0 = forward x camera_upvector
+        call _sse3d_normalize_xmm0          ;// xmm0 = normalize(forward x camera_upvector) = side
+        movaps xmm4, xmm0                   ;// xmm4 = side
+
+        movaps xmm1, xmm7                   ;// xmm1 = forward
+        call _sse3d_crossproduct_xmm0_xmm1  ;// xmm0 = side x forward = up
+        movaps xmm5, xmm0                   ;// xmm5 = up
+
+        xorps  xmm7, xmm7                   ;// xmm7 = 0
+                                            ;// xmm4-7 = [side, up, -forward, 0]
+        mov    edi, dst                     ;// edi = destination matrix
+        movaps [edi+0x00], xmm4             ;// dst row 0 = side
+        movaps [edi+0x10], xmm5             ;// dst row 1 = up
+        movaps [edi+0x20], xmm6             ;// dst row 2 = -forward
+        movaps [edi+0x30], xmm7             ;// dst row 3 = 0
     }
-
-    // forward = normalize(forward)
-    sse3d_normalize_vectors(forward, forward, 1);
-
-    // side = normalize(forward x camera_upvector)
-    sse3d_crossproduct_vector(side, forward, camera_upvector);
-    sse3d_normalize_vectors(side, side, 1);
-
-    // up = side x forward
-    sse3d_crossproduct_vector(up, side, forward);
-
-    __asm
-    {
-        xorps  xmm0, xmm0               ;// xmm0 = 0
-        mov    edi, dst                 ;// edi = destination matrix
-        mov    esi, forward             ;// esi = forward vector
-        movaps [edi+0x30], xmm0         ;// destination row 3 = (0, 0, 0, 0)
-        subps  xmm0, [esi]              ;// xmm0 = -1 * forward vector
-        movaps [esi], xmm0              ;// forward vector *= -1;
-    }
-    dst->m33 = 1;                       // fix row 3
+    dst->m33 = 1;                           // fix row 3
 
 
     sse3d_translation_matrix(&translation, -camera_position->x, -camera_position->y, -camera_position->z);
@@ -446,6 +491,19 @@ void sse3d_prepare_render_vectors(sse3d_vector_t *vectors, int nr_vec)
         movaps [edi], xmm0          ;// xmm0 now holds the prepared vector, store it as the current vector
         add edi, 0x10               ;// edi = next vector
         loop prepare_vector         ;// continue while there are vectors
+    }
+}
+
+void sse3d_draw_triangle()
+{
+    __asm
+    {
+        //movaps xmm0, v0
+        //movaps xmm1, v1
+        //movaps xmm2, v2
+
+        //subps  xmm1, xmm0
+        //subps  xmm2, xmm0
     }
 }
 
