@@ -1,0 +1,6 @@
+*.ncb
+*.suo
+*.user
+*.pdb
+*.ilk
+bin/intermediate/*.*

@@ -77,22 +77,34 @@ void sse3d_transpose_matrix(sse3d_matrix_t *dst, sse3d_matrix_t *src)
 {
     __asm
     {
-        mov edi, dst        ;// edi = destination matrix
-        mov esi, src        ;// esi = source matrix
-        xor ecx, ecx        ;// ecx = 0 (index to destination matrix cell)
+        mov esi, src
+        mov edi, dst
 
-        transpose_cell:
-        mov eax, ecx        ;// eax = destination index
-        mov ebx, ecx        ;// ebx = destination index
-        and eax, 0x03       ;// eax %= 4
-        xor ebx, eax        ;// ebx = (ebx / 4) * 4
-        shl eax, 4          ;// eax = eax * 4 * 4
-        add eax, ebx        ;// eax = mapped index to source matrix cell * 4
-        mov eax, [esi+eax]  ;// eax = source cell value
-        stosd               ;// store eax in the current destination cell
-        inc ecx             ;// while ++ecx
-        cmp ecx, 16         ;// < 16
-        jl transpose_cell   ;// goto transpose_cell
+        movaps xmm0, [esi + 0x00]   ;// xmm0 = [0 1 2 3]
+        movaps xmm1, [esi + 0x10]   ;// xmm1 = [4 5 6 7]
+        movaps xmm2, [esi + 0x20]   ;// xmm2 = [8 9 A B]
+        movaps xmm3, [esi + 0x30]   ;// xmm3 = [C D E F]
+
+        movaps xmm4, xmm2           ;// xmm4 = [8 9 A B]
+        movaps xmm5, xmm2           ;// xmm5 = [8 9 A B]
+
+        punpckldq xmm4, xmm3        ;// xmm4 = [8 C 9 D]
+        punpckhdq xmm5, xmm3        ;// xmm5 = [A E B F]
+        movaps    xmm2, xmm0        ;// xmm2 = [0 1 2 3]
+        punpckldq xmm0, xmm1        ;// xmm0 = [0 4 1 5]
+        punpckhdq xmm2, xmm1        ;// xmm2 = [2 6 3 7]
+        movaps    xmm1, xmm0        ;// xmm1 = [0 4 1 5]
+        movaps    xmm3, xmm2        ;// xmm3 = [2 6 3 7]
+
+        punpcklqdq xmm0, xmm4       ;// xmm0 = [0 4 8 C]
+        punpckhqdq xmm1, xmm4       ;// xmm1 = [1 5 9 D]
+        punpcklqdq xmm2, xmm5       ;// xmm2 = [2 6 A E]
+        punpckhqdq xmm3, xmm5       ;// xmm3 = [3 7 B F]
+
+        movaps [edi + 0x00], xmm0
+        movaps [edi + 0x10], xmm1
+        movaps [edi + 0x20], xmm2
+        movaps [edi + 0x30], xmm3
     }
 }
 
