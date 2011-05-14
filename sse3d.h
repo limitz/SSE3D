@@ -435,16 +435,17 @@ void sse3d_prepare_render_vectors(sse3d_vector_t *vectors, int nr_vec)
 {
     __asm
     {
-        mov edi, vectors
-        mov ecx, nr_vec
+        mov edi, vectors            ;// edi = source and destination vectors
+        mov ecx, nr_vec             ;// ecx = number of vectors
 
         prepare_vector:
-        movaps xmm0, [edi]
-        movaps xmm1, xmm0
-        shufps xmm1, xmm1, 0xFF
-        divps  xmm0, xmm1
-        movaps [edi], xmm0
-        loop prepare_vector
+        movaps xmm0, [edi]          ;// xmm0 = current vector [x, y, z, w]
+        movaps xmm1, xmm0           ;// xmm1 = current vector [x, y, z, w]
+        shufps xmm1, xmm1, 0xFF     ;// xmm1 = [w, w, w, w]
+        divps  xmm0, xmm1           ;// xmm0 = [x/w, y/w, z/w, 1]
+        movaps [edi], xmm0          ;// xmm0 now holds the prepared vector, store it as the current vector
+        add edi, 0x10               ;// edi = next vector
+        loop prepare_vector         ;// continue while there are vectors
     }
 }
 
