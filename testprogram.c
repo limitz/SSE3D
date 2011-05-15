@@ -4,6 +4,7 @@
 #include <time.h>
 
 #include "sse3d.h"
+#include "sse3d_window.h"
 
 void print_matrix(const char *name, const sse3d_matrix_t *matrix)
 {
@@ -24,7 +25,57 @@ void print_vector(const char *name, const sse3d_vector_t *vector)
     printf("VECTOR: %s\n[%0.3f %0.3f %0.3f %0.3f]\n\n", name, vector->x, vector->y, vector->z, vector->w);
 }
 
-int main()
+void render(unsigned char* buffer, int width, int height)
+{
+    static float angle = 0.0f;
+    
+    static aligned sse3d_vector_t v[3]     = {
+        { 320.0f,  10.0f, 0.1f, 1.0f },
+        { 0.0f,   50.5f, 0.4f, 1.0f },
+        { 160.0f,  220.0f, 1.0f, 1.0f }
+    };
+    static aligned sse3d_vector_t d[3];
+
+    static aligned sse3d_matrix_t rot, t, it, identity;
+    
+    angle += 0.01f;
+
+    sse3d_identity_matrix(&identity);
+    sse3d_translation_matrix(&t, FRAMEBUFFER_WIDTH/2, FRAMEBUFFER_HEIGHT/2, 0);
+    sse3d_translation_matrix(&it, -FRAMEBUFFER_WIDTH/2, -FRAMEBUFFER_HEIGHT/2, 0);
+    sse3d_rotation_z_matrix(&rot, angle);
+
+    
+    sse3d_multiply_matrix(&t, &t, &rot);
+    sse3d_multiply_matrix(&t, &t, &it);
+    sse3d_multiply_vectors(d, &t, v, 3);
+    sse3d_prepare_render_vectors(d, 3);
+    sse3d_draw_triangle(buffer, width, height, d+0, d+1, d+2);
+}
+
+int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, int showCmd)
+{
+    MSG msg;
+    RECT windowRect;
+    
+    sse3d_window_t* window = sse3d_create_window(instance, render);
+
+    SetRect(&windowRect, 0, 0, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT);
+	while (1)
+	{
+		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+		{
+			if (msg.message == WM_QUIT) return msg.lParam;
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+
+        InvalidateRect(window->handle, &windowRect, FALSE);
+		Sleep(10);
+	}
+}
+
+int main_()
 {
     aligned sse3d_matrix_t matrix;
     aligned sse3d_matrix_t translation;
@@ -33,9 +84,9 @@ int main()
     aligned sse3d_matrix_t lookat;
 
     aligned sse3d_vector_t vector;
-    aligned sse3d_vector_t va       = { 32.0f,  1.0f, -3.0f, 0.0f };
-    aligned sse3d_vector_t vb       = { 0.0f,   5.5f, -3.0f, 0.0f };
-    aligned sse3d_vector_t vc       = { 16.0f,  16.0f, -3.0f, 0.0f };
+    aligned sse3d_vector_t va       = { 32.0f,  1.0f, 1.0f, 0.0f };
+    aligned sse3d_vector_t vb       = { 0.0f,   5.5f, 0.5f, 0.0f };
+    aligned sse3d_vector_t vc       = { 16.0f,  16.0f, 0.0f, 0.0f };
     aligned sse3d_vector_t target   = { 0.0f, -4.0f, -3.0f, 0.0f };
     aligned sse3d_vector_t camera   = { 0.0f,  0.0f,  1.0f, 0.0f };
     aligned sse3d_vector_t up_vec   = { 0.0f,  1.0f,  0.0f, 0.0f };
