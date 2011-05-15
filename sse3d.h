@@ -490,16 +490,119 @@ void sse3d_prepare_render_vectors(sse3d_vector_t *vectors, int nr_vec)
     }
 }
 
-void sse3d_draw_triangle()
+void sse3d_draw_triangle(unsigned char *scanlines, int width, int height, sse3d_vector_t *v0, sse3d_vector_t *v1, sse3d_vector_t *v2)
 {
+    int i;
+    float y;
+    aligned sse3d_vector_t frustrum_min = {0, 0, 0, 0};
+    aligned sse3d_vector_t frustrum_max = {32, 16,-10, 0};
+    aligned sse3d_m128_t   clip;
+    aligned sse3d_vector_t min, max;
+    
+    aligned sse3d_m128_t m128_y = {0, 0, 0, 0};
+    aligned sse3d_m128_t m128_span = {0, 0, 0, 0};
+    
+    sse3d_vector_t *va,*vb,*vc;
+
     __asm
     {
-        //movaps xmm0, v0
-        //movaps xmm1, v1
-        //movaps xmm2, v2
+        calculate_minima_maxima:
+        mov esi, v0
+        movaps xmm4, [esi]
+        mov esi, v1
+        movaps xmm5, [esi]
+        mov esi, v2
+        movaps xmm6, [esi]
 
-        //subps  xmm1, xmm0
-        //subps  xmm2, xmm0
+        movaps xmm0, xmm4
+        movaps xmm1, xmm4
+        minps  xmm0, xmm5
+        maxps  xmm1, xmm5
+        minps  xmm0, xmm6
+        maxps  xmm1, xmm6
+        movaps min, xmm0
+        movaps max, xmm1
+
+        movaps xmm2, [frustrum_min]
+        movaps xmm3, [frustrum_max]
+        cmpltps xmm1, xmm2
+        cmpltps xmm3, xmm0
+        andps   xmm1, xmm3
+        movaps  clip, xmm1
+    }   
+
+    //if (clip.i32[0] || clip.i32[1] || clip.i32[2] || clip.i32[3]) return;
+
+    
+    scanlines += ((int)min.y) * width;
+    for (y = floor(min.y) + 0.5; y < max.y && y < height; y+=1, scanlines += width)
+    {
+
+        m128_y.f32[1] = y;
+        
+        if (v0->y < y)
+        {
+            if (v1->y < y)
+            {
+                if (v2->y < y) continue;
+                else va = v0, vb = v2, vc = v1;
+            }
+            else if (v2->y < y)
+            {
+                va = v0, vb = v1,vc = v2;
+            }
+            else va = v2, vb = v0,vc = v1;
+        }
+        else if (v1->y < y)
+        {
+            if (v2->y < y) va = v2, vb = v0,vc = v1;
+            else va = v0, vb = v1,vc = v2;
+        }
+        else if (v2->y < y)
+        {
+            va = v1, vb = v2,vc = v0;
+        }
+        else continue;
+    
+        __asm
+        {
+            mov esi, va
+            movaps xmm0, [esi]      ;// xmm0 = 1A
+            mov esi, vb
+            movaps xmm1, [esi]      ;// xmm1 = 1B
+            movaps xmm2, xmm1       ;// xmm2 = 2A
+            mov esi, vc
+            movaps xmm3, [esi]      ;// xmm3 = 1B
+            movaps xmm4, m128_y     ;// xmm4 = [0, y, 0, 0]
+            movaps xmm6, xmm4       ;// xmm6 = [0, y, 0, 0]
+            
+            subps  xmm1, xmm0       ;// xmm1 = 1B - 1A = Adelta (Adx, Ady, Adz, 0)
+            subps  xmm3, xmm2       ;// xmm3 = 2B - 2A = Bdelta (Bdx, Bdy, Bdz, 0)
+            subps  xmm4, xmm0       ;// xmm4 = y - 1A.y
+            subps  xmm6, xmm2       ;// xmm6 = y - 2A.y
+            divps  xmm4, xmm1       ;// xmm4 = (y - 1A.y)/Ady = Ai (interpolation value)
+            divps  xmm6, xmm3       ;// xmm6 = (y - 2A.y)/Bdy = Bi (interpolation value)
+            shufps xmm4, xmm4, 0x55 ;// xmm4 = (2, 2, 2, 2) = [Ai, Ai, Ai, Ai]
+            shufps xmm6, xmm6, 0x55 ;// xmm6 = (2, 2, 2, 2) = [Bi, Bi, Bi, Bi]
+            mulps  xmm1, xmm4       ;// xmm4 = Adelta * Ai
+            mulps  xmm3, xmm6       ;// xmm3 = Bdelta * Bi
+            addps  xmm0, xmm1       ;// xmm0 = Aintersect (Aix, Aiy, Aiz)
+            addps  xmm2, xmm3       ;// xmm2 = Bintersect (Bix, Biy, Biz)
+            movaps xmm6, [frustrum_min]
+            movaps xmm7, [frustrum_max]
+            maxps  xmm0, xmm6
+            maxps  xmm2, xmm6
+            minps  xmm0, xmm7
+            minps  xmm2, xmm7
+            shufps xmm0, xmm2, 0x88 ;// xmm0 = Aix, Aiz, Bix, Biz
+            lea edi, m128_span
+            movaps [edi], xmm0
+        }
+
+        for (i=(int)m128_span.f32[2]; i<(int)m128_span.f32[0]; i++)
+        {
+            scanlines[i] = 0xFF;
+        }
     }
 }
 

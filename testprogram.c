@@ -33,17 +33,22 @@ int main()
     aligned sse3d_matrix_t lookat;
 
     aligned sse3d_vector_t vector;
+    aligned sse3d_vector_t va       = { 32.0f,  1.0f, -3.0f, 0.0f };
+    aligned sse3d_vector_t vb       = { 0.0f,   5.5f, -3.0f, 0.0f };
+    aligned sse3d_vector_t vc       = { 16.0f,  16.0f, -3.0f, 0.0f };
     aligned sse3d_vector_t target   = { 0.0f, -4.0f, -3.0f, 0.0f };
     aligned sse3d_vector_t camera   = { 0.0f,  0.0f,  1.0f, 0.0f };
     aligned sse3d_vector_t up_vec   = { 0.0f,  1.0f,  0.0f, 0.0f };
     aligned sse3d_vector_t original = { 1.0f,  2.0f,  3.0f, 1.0f };
 
-    int i;
+    int i, j;
     int nr_matrix_tests = 10000000;
     int nr_vec = 30000000;
     sse3d_vector_t* vector_list;
     clock_t start, end;
     
+    int width = 32, height=16;
+    unsigned char* scanlines = (unsigned char*) calloc(width * height, 1);
 
     sse3d_translation_matrix(&translation, 3, 3, 0);
     sse3d_rotation_z_matrix(&rotation, M_PI/4);
@@ -94,6 +99,19 @@ int main()
     end = clock();
 
     printf("Matrix muliplications per second: %0.0f\n", 1.0f / ((end-start) / (float)CLOCKS_PER_SEC) * nr_matrix_tests);
+
+    sse3d_draw_triangle(scanlines, width, height, &va, &vb, &vc);
+    
+    for (j=0; j<height; j++)
+    {
+        for (i=0; i<width; i++)
+        {
+            printf("%02X", scanlines[j*width + i]);
+        }
+        printf("\n");
+    }
+
+
 
     getchar();
     return 0;
