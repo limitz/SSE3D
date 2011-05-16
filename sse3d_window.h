@@ -23,8 +23,8 @@ typedef struct
     HDC z_buffer_dc;
     HBITMAP n_buffer_bm;
     HBITMAP z_buffer_bm;
-    unsigned char* n_buffer;
-    unsigned int* z_buffer;
+    unsigned int* n_buffer;
+    unsigned short* z_buffer;
     renderproc render;
 } sse3d_window_t;
 
@@ -66,7 +66,6 @@ LRESULT CALLBACK sse3d_windowproc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
 				PAINTSTRUCT paint;
 				HDC hdc = BeginPaint(hwnd, &paint);
 
-				RECT invalidRect = paint.rcPaint;
 				SetViewportOrgEx(hdc, 0, 0, NULL);
                 memset(instance->z_buffer, 0x00, FRAMEBUFFER_WIDTH * FRAMEBUFFER_HEIGHT * 2);
                 memset(instance->n_buffer, 0x00, FRAMEBUFFER_WIDTH * FRAMEBUFFER_HEIGHT * 4);
@@ -140,9 +139,9 @@ sse3d_window_t* sse3d_create_window(HINSTANCE instance, renderproc render)
         palette[i].rgbBlue = i>>8;
     }
 
-    result->z_buffer_bm = CreateDIBSection(result->z_buffer_dc, bminfo, DIB_RGB_COLORS, &result->z_buffer, NULL, NULL);
+    result->z_buffer_bm = CreateDIBSection(result->z_buffer_dc, bminfo, DIB_RGB_COLORS, &result->z_buffer, NULL, 0);
     bminfo->bmiHeader.biBitCount = 32;
-    result->n_buffer_bm = CreateDIBSection(result->n_buffer_dc, bminfo, DIB_RGB_COLORS, &result->n_buffer, NULL, NULL);
+    result->n_buffer_bm = CreateDIBSection(result->n_buffer_dc, bminfo, DIB_RGB_COLORS, &result->n_buffer, NULL, 0);
 
     SelectObject(result->z_buffer_dc, result->z_buffer_bm);
     SelectObject(result->n_buffer_dc, result->n_buffer_bm);

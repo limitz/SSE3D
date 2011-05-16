@@ -204,12 +204,12 @@ void sse3d_identity_matrix(sse3d_matrix_t *dst)
 void sse3d_rotation_z_matrix(sse3d_matrix_t *dst, float angle)
 {
     memset(dst, 0, sizeof(float) * 16);
-    dst->m00 = cos(angle);
-    dst->m01 = -sin(angle);
-    dst->m10 = sin(angle);
-    dst->m11 = cos(angle);
-    dst->m22 = 1;
-    dst->m33 = 1;
+    dst->m00 = (float)cos(angle);
+    dst->m01 = (float)-sin(angle);
+    dst->m10 = (float)sin(angle);
+    dst->m11 = (float)cos(angle);
+    dst->m22 = 1.0f;
+    dst->m33 = 1.0f;
 }
 
 
@@ -222,12 +222,12 @@ void sse3d_rotation_z_matrix(sse3d_matrix_t *dst, float angle)
 void sse3d_rotation_y_matrix(sse3d_matrix_t *dst, float angle)
 {
     memset(dst, 0, sizeof(float)*16);
-    dst->m00 = cos(angle);
-    dst->m02 = -sin(angle);
-    dst->m11 = 1;
-    dst->m20 = sin(angle);
-    dst->m22 = cos(angle);
-    dst->m33 = 1;
+    dst->m00 = (float)cos(angle);
+    dst->m02 = (float)-sin(angle);
+    dst->m11 = 1.0f;
+    dst->m20 = (float)sin(angle);
+    dst->m22 = (float)cos(angle);
+    dst->m33 = 1.0f;
 }
 
 
@@ -240,12 +240,12 @@ void sse3d_rotation_y_matrix(sse3d_matrix_t *dst, float angle)
 void sse3d_rotation_x_matrix(sse3d_matrix_t *dst, float angle)
 {
     memset(dst, 0, sizeof(float)*16);
-    dst->m00 = 1;
-    dst->m11 = cos(angle);
-    dst->m12 = -sin(angle);
-    dst->m21 = sin(angle);
-    dst->m22 = cos(angle);
-    dst->m33 = 1;
+    dst->m00 = 1.0f;
+    dst->m11 = (float)cos(angle);
+    dst->m12 = (float)-sin(angle);
+    dst->m21 = (float)sin(angle);
+    dst->m22 = (float)cos(angle);
+    dst->m33 = 1.0f;
 }
 
 
@@ -528,7 +528,6 @@ void sse3d_draw_triangle(unsigned short *z_buffer, unsigned int* n_buffer, int w
 
     aligned sse3d_vector_t frustrum_min = {0, 0, -1000, 0};
     aligned sse3d_vector_t frustrum_max = {FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT,1000, 0};
-    aligned sse3d_m128_t   clip;
     aligned sse3d_vector_t min, max;
     
     aligned sse3d_m128_t m128_y = {0, 0, 0, 0};
@@ -546,7 +545,6 @@ void sse3d_draw_triangle(unsigned short *z_buffer, unsigned int* n_buffer, int w
 
     __asm
     {
-        calculate_minima_maxima:
         mov esi, v0
         movaps xmm4, [esi]
         mov esi, v1
@@ -576,7 +574,7 @@ void sse3d_draw_triangle(unsigned short *z_buffer, unsigned int* n_buffer, int w
 
     z_buffer += ((int)min.y) * width;
     n_buffer += ((int)min.y) * width;
-    for (y = floor(min.y) + 0.5; y < max.y && y < height; y+=1, z_buffer += width, n_buffer += width)
+    for (y = (float)floor(min.y) + 0.5f; y < max.y && y < height; y+=1.0f, z_buffer += width, n_buffer += width)
     {
 
         m128_y.f32[1] = y;
