@@ -627,9 +627,9 @@ void sse3d_draw_triangle(unsigned char *scanlines, int width, int height, sse3d_
             {
                 float dx = m128_span.f32[0] - m128_span.f32[2];
                 float dz = m128_span.f32[1] - m128_span.f32[3];
-                for (i=(int)m128_span.f32[2]; i<=(int)m128_span.f32[0]; i++)
+                for (i=(int)m128_span.f32[2]; i<(int)m128_span.f32[0]; i++)
                 {
-                    unsigned char v = (200 - ((i - (int)m128_span.f32[2])/dx * dz + m128_span.f32[3]) / 2000) * 0xFF;
+                    unsigned char v = (150 - ((i - (int)m128_span.f32[2])/dx * dz + m128_span.f32[3]) / 1500) * 0xFF;
                     if (v > scanlines[i]) scanlines[i] = v;
                 }
             }

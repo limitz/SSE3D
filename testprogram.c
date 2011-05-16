@@ -123,7 +123,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 		}
 
         InvalidateRect(window->handle, &windowRect, FALSE);
-		Sleep(10);
+		//Sleep(10);
 	}
 }
 
