@@ -278,6 +278,23 @@ void sse3d_translation_matrix(sse3d_matrix_t *dst, float dx, float dy, float dz)
     dst->m23 = dz; 
 }
 
+void sse3d_perspective_matrix(sse3d_matrix_t *dst)
+{
+    sse3d_identity_matrix(dst);
+    dst->m32 = 1;
+    dst->m33 = 0;
+}
+
+void sse3d_projection_matrix(sse3d_matrix_t *dst, float width, float height, float z_near, float z_far)
+{
+    aligned sse3d_matrix_t translate, scale;
+    float dz = z_far - z_near;
+    float factor = width < height ? width/2 : height/2;
+    sse3d_scale_matrix(&scale, factor, factor, 1/dz);
+    sse3d_translation_matrix(&translate, width / 2.0f, height / 2.0f, -z_near);
+    sse3d_multiply_matrix(dst, &scale, &translate);
+}
+
 
 /* ---------------------------------------------- *
  * Naked function to calculate the dotproduct     *
@@ -462,12 +479,14 @@ void sse3d_lookat_matrix(sse3d_matrix_t *dst, sse3d_vector_t *camera_position, s
 
 
     sse3d_translation_matrix(&translation, -camera_position->x, -camera_position->y, -camera_position->z);
+    //sse3d_transpose_matrix(dst, dst);
+    sse3d_multiply_matrix(dst, dst, &translation );
     
     // the matrix is still in column major, you need to transpose to get it into row major
     // however, since the multiply matrix does this usually for src_b and passes it as src_a, 
     // into sse3d_multiply_vectors we'll call sse3d_multiply_vectors ourselves so we don't
     // transpose twice (which would be a nop)
-    sse3d_multiply_vectors((sse3d_vector_t*)dst, dst, (sse3d_vector_t*)&translation, 4);
+    //sse3d_multiply_vectors((sse3d_vector_t*)dst, dst, (sse3d_vector_t*)&translation, 4);
 }
 
 
@@ -498,10 +517,14 @@ void sse3d_prepare_render_vectors(sse3d_vector_t *vectors, int nr_vec)
     }
 }
 
-void sse3d_draw_triangle(unsigned char *scanlines, int width, int height, sse3d_vector_t *v0, sse3d_vector_t *v1, sse3d_vector_t *v2)
+void sse3d_draw_triangle(unsigned char *z_buffer, unsigned int* n_buffer, int width, int height, 
+                         sse3d_vector_t *v0, sse3d_vector_t *v1, sse3d_vector_t *v2, 
+                         sse3d_vector_t *n0, sse3d_vector_t *n1, sse3d_vector_t *n2)
 {
     int i;
     float y;
+
+    static aligned sse3d_vector_t lightdirection = {0, 0, -1, 0};
 
     aligned sse3d_vector_t frustrum_min = {0, 0, -1000, 0};
     aligned sse3d_vector_t frustrum_max = {FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT,1000, 0};
@@ -547,8 +570,9 @@ void sse3d_draw_triangle(unsigned char *scanlines, int width, int height, sse3d_
         
     }   
 
-    scanlines += ((int)min.y) * width;
-    for (y = floor(min.y) + 0.5; y < max.y && y < height; y+=1, scanlines += width)
+    z_buffer += ((int)min.y) * width;
+    n_buffer += ((int)min.y) * width;
+    for (y = floor(min.y) + 0.5; y < max.y && y < height; y+=1, z_buffer += width, n_buffer += width)
     {
 
         m128_y.f32[1] = y;
@@ -625,12 +649,28 @@ void sse3d_draw_triangle(unsigned char *scanlines, int width, int height, sse3d_
             }
             
             {
+
                 float dx = m128_span.f32[0] - m128_span.f32[2];
                 float dz = m128_span.f32[1] - m128_span.f32[3];
+                sse3d_normalize_vectors(n0, n0, 1);
+                sse3d_normalize_vectors(n1, n1, 1);
+                sse3d_normalize_vectors(n2, n2, 1);
                 for (i=(int)m128_span.f32[2]; i<(int)m128_span.f32[0]; i++)
                 {
-                    unsigned char v = (150 - ((i - (int)m128_span.f32[2])/dx * dz + m128_span.f32[3]) / 1500) * 0xFF;
-                    if (v > scanlines[i]) scanlines[i] = v;
+                    float v = (((i - (int)m128_span.f32[2]) / dx) * dz + m128_span.f32[3]);
+                    if (v>1) continue;
+                    if (v<-1) continue;
+                    
+                    v+= 1;
+                    v/=2;
+                    
+                    if ((unsigned char)(v * 0xFF) > z_buffer[i]) 
+                    {
+                        float normal = ((n0->z + n1->z + n2->z)/3);
+                        z_buffer[i] = (unsigned char) (v * 0xFF);
+                        if (normal < 0) continue;
+                        n_buffer[i] =  normal * z_buffer[i];
+                    }
                 }
             }
         }

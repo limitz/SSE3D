@@ -14,14 +14,17 @@
 #include <windows.h>
 #include "sse3d.h"
 
-typedef void (*renderproc)(unsigned char *buffer, int width, int height);
+typedef void (*renderproc)(unsigned char *z_buffer, unsigned int *n_buffer, int width, int height);
 
 typedef struct
 {
     HWND handle;
-    HDC backbuffer_dc;
-    HBITMAP backbuffer;
-    unsigned char* buffer;
+    HDC n_buffer_dc;
+    HDC z_buffer_dc;
+    HBITMAP n_buffer_bm;
+    HBITMAP z_buffer_bm;
+    unsigned char* n_buffer;
+    unsigned int* z_buffer;
     renderproc render;
 } sse3d_window_t;
 
@@ -65,10 +68,11 @@ LRESULT CALLBACK sse3d_windowproc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
 
 				RECT invalidRect = paint.rcPaint;
 				SetViewportOrgEx(hdc, 0, 0, NULL);
-                memset(instance->buffer, 0x00, FRAMEBUFFER_WIDTH * FRAMEBUFFER_HEIGHT);
-                if (instance->render) instance->render(instance->buffer, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT);
+                memset(instance->z_buffer, 0x00, FRAMEBUFFER_WIDTH * FRAMEBUFFER_HEIGHT);
+                memset(instance->n_buffer, 0x00, FRAMEBUFFER_WIDTH * FRAMEBUFFER_HEIGHT * 4);
+                if (instance->render) instance->render(instance->z_buffer, instance->n_buffer, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT);
 
-                BitBlt(hdc, 0, 0, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT, instance->backbuffer_dc, 0, 0, SRCCOPY);
+                BitBlt(hdc, 0, 0, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT, instance->n_buffer_dc, 0, 0, SRCCOPY);
 				EndPaint(hwnd, &paint);
 			}
 			return 0;
@@ -115,8 +119,10 @@ sse3d_window_t* sse3d_create_window(HINSTANCE instance, renderproc render)
     }
 
     hdc = GetDC(result->handle);
-    result->backbuffer_dc = CreateCompatibleDC(hdc);
+    result->z_buffer_dc = CreateCompatibleDC(hdc);
+    result->n_buffer_dc = CreateCompatibleDC(hdc);
     result->render = render;
+
     bminfo = (BITMAPINFO*) calloc(1, sizeof(BITMAPINFO) + sizeof(RGBQUAD) * 256);
     bminfo->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
     bminfo->bmiHeader.biBitCount = 8;
@@ -134,8 +140,12 @@ sse3d_window_t* sse3d_create_window(HINSTANCE instance, renderproc render)
         palette[i].rgbBlue = i;
     }
 
-    result->backbuffer = CreateDIBSection(result->backbuffer_dc, bminfo, DIB_RGB_COLORS, &result->buffer, NULL, NULL);
-    SelectObject(result->backbuffer_dc, result->backbuffer);
+    result->z_buffer_bm = CreateDIBSection(result->z_buffer_dc, bminfo, DIB_RGB_COLORS, &result->z_buffer, NULL, NULL);
+    bminfo->bmiHeader.biBitCount = 32;
+    result->n_buffer_bm = CreateDIBSection(result->n_buffer_dc, bminfo, DIB_RGB_COLORS, &result->n_buffer, NULL, NULL);
+
+    SelectObject(result->z_buffer_dc, result->z_buffer_bm);
+    SelectObject(result->n_buffer_dc, result->n_buffer_bm);
     free(bminfo);
     ReleaseDC(result->handle, hdc);
 

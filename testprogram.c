@@ -26,32 +26,61 @@ void print_vector(const char *name, const sse3d_vector_t *vector)
 }
 
 aligned sse3d_vector_t vertices[10000];
-aligned sse3d_vector_t transformed[10000];
-int indices[15000];
+aligned sse3d_vector_t normals[10000];
+aligned sse3d_vector_t v_transformed[10000];
+aligned sse3d_vector_t n_transformed[10000];
+int indices[30000];
 
-int nr_vertices, nr_indices;
+int nr_vertices, nr_indices, nr_normals;
 
-void render(unsigned char* buffer, int width, int height)
+void render(unsigned char *z_buffer, unsigned char *n_buffer, int width, int height)
 {
     int i;
     static float angle = 0;
-    static aligned sse3d_matrix_t identity, translate, rotation1, rotation2;
+    static aligned sse3d_vector_t camera = {0,0,1.9,0}, target = {0, 0, 2, 0} , upvector = {0,1, 0, 0};
+    static aligned sse3d_matrix_t camera_rotation;
+    static aligned sse3d_matrix_t model, model_scale, model_rotation, model_rotation_y, model_translation;
+    static aligned sse3d_matrix_t projection, projection_scale, projection_translation, lookat;
+    static aligned sse3d_matrix_t identity, transform;
 
-    sse3d_scale_matrix(&identity, 10, 10, 10);
-    sse3d_translation_matrix(&translate, 240, 120, 10);
-    sse3d_rotation_x_matrix(&rotation1, -M_PI/2);
-    sse3d_rotation_y_matrix(&rotation2, angle += 0.01);
+    sse3d_rotation_y_matrix(&camera_rotation, 0.005f);
+    //camera.x = sin(angle+=0.005f);
+    //sse3d_multiply_vectors(&camera, &camera_rotation, &camera, 1);
 
-    sse3d_multiply_matrix(&identity, &rotation1, &identity);
-    sse3d_multiply_matrix(&identity, &rotation2, &identity);
-    sse3d_multiply_matrix(&identity, &translate, &identity);
+    sse3d_identity_matrix(&identity);
+    sse3d_scale_matrix(&model_scale, .02f, .02f, .02f);
+    sse3d_rotation_x_matrix(&model_rotation, -M_PI/2);
+    sse3d_rotation_y_matrix(&model_rotation_y, angle += 0.003f);
+    sse3d_translation_matrix(&model_translation, 0, -0.2, 0);
+    sse3d_multiply_matrix(&model, &model_rotation_y, &model_rotation);
+    sse3d_multiply_matrix(&model, &model_scale, &model);
+    sse3d_multiply_matrix(&model, &model_translation, &model);
     
-    sse3d_multiply_vectors(transformed, &identity, vertices, nr_vertices);
+    
+    sse3d_scale_matrix(&projection_scale, 5*height/2, 5*height/2, 1.0f);
+    sse3d_translation_matrix(&projection_translation, width/2, height/2, 0.0f);
+    //sse3d_translation_matrix(&transform, width/2, height/2, 0);
+    sse3d_multiply_matrix(&projection, &projection_translation, &projection_scale);
 
-    sse3d_prepare_render_vectors(transformed, nr_vertices);
-    for (i=0; i<nr_indices; i+=3)
+    //sse3d_lookat_matrix(&lookat, &camera, &target, &upvector);
+    //sse3d_projection_matrix(&projection, width, height, -1, 1);
+    //sse3d_multiply_matrix(&transform, &projection, &lookat);
+    sse3d_multiply_matrix(&transform, &projection, &model);
+
+    //sse3d_multiply_matrix(&identity, &perspective, &identity);
+    //sse3d_multiply_matrix(&identity, &rotation1, &identity);
+    //sse3d_multiply_matrix(&identity, &rotation2, &identity);
+    //sse3d_multiply_matrix(&identity, &translate, &identity);
+    
+    sse3d_multiply_vectors(v_transformed, &transform, vertices, nr_vertices);
+    sse3d_multiply_vectors(n_transformed, &model, normals, nr_normals);
+
+    sse3d_prepare_render_vectors(v_transformed, nr_vertices);
+    for (i=0; i<nr_indices; i+=6)
     {
-        sse3d_draw_triangle(buffer, width, height, transformed + indices[i] - 1, transformed + indices[i+1] - 1, transformed + indices[i+2] - 1);
+        sse3d_draw_triangle(z_buffer, n_buffer, width, height, 
+            v_transformed + indices[i+0] - 1, v_transformed + indices[i+1] - 1, v_transformed + indices[i+2] - 1,
+            n_transformed + indices[i+3] - 1, n_transformed + indices[i+4] - 1, n_transformed + indices[i+5] - 1);
     }
     
     /*
@@ -101,13 +130,22 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
             vertices[nr_vertices].w = 1;
             nr_vertices++;
         }
+        if (buffer[0] == 'v' && buffer[1] == 'n')
+        {
+            sscanf(buffer, "vn %f %f %f", &normals[nr_normals].x, &normals[nr_normals].y, &normals[nr_normals].z);
+            normals[nr_normals].w = 0;
+            nr_normals++;
+        }
         if (buffer[0] == 'f' && buffer[1] == ' ')
         {
-            int a, b, c;
-            sscanf(buffer, "f %d/%*d/%*d %d/%*d/%*d %d/%*d/%*d", &a, &b, &c);
+            int a, b, c, na, nb, nc;
+            sscanf(buffer, "f %d/%*d/%d %d/%*d/%d %d/%*d/%d", &a, &na, &b, &nb, &c, &nc);
             indices[nr_indices++] = a;
             indices[nr_indices++] = b;
             indices[nr_indices++] = c;
+            indices[nr_indices++] = na;
+            indices[nr_indices++] = nb;
+            indices[nr_indices++] = nc;
         }
     }
 
@@ -203,19 +241,7 @@ int main()
 
     printf("Matrix muliplications per second: %0.0f\n", 1.0f / ((end-start) / (float)CLOCKS_PER_SEC) * nr_matrix_tests);
 
-    sse3d_draw_triangle(scanlines, width, height, &va, &vb, &vc);
     
-    for (j=0; j<height; j++)
-    {
-        for (i=0; i<width; i++)
-        {
-            printf("%02X", scanlines[j*width + i]);
-        }
-        printf("\n");
-    }
-
-
-
     getchar();
     return 0;
 }
