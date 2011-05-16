@@ -39,39 +39,27 @@ void render(unsigned short *z_buffer, unsigned char *n_buffer, int width, int he
     static float angle = 0;
     static aligned sse3d_vector_t camera = {0,0,1.9,0}, target = {0, 0, 2, 0} , upvector = {0,1, 0, 0};
     static aligned sse3d_matrix_t camera_rotation;
-    static aligned sse3d_matrix_t model, model_scale, model_rotation, model_rotation_y, model_translation;
+    static aligned sse3d_matrix_t model, model_scale, model_rotation, model_rotation_y, model_rotation_x,model_translation;
     static aligned sse3d_matrix_t projection, projection_scale, projection_translation, lookat;
     static aligned sse3d_matrix_t identity, transform;
-
-    sse3d_rotation_y_matrix(&camera_rotation, 0.005f);
-    //camera.x = sin(angle+=0.005f);
-    //sse3d_multiply_vectors(&camera, &camera_rotation, &camera, 1);
 
     sse3d_identity_matrix(&identity);
     sse3d_scale_matrix(&model_scale, .02f, .02f, .02f);
     sse3d_rotation_x_matrix(&model_rotation, -M_PI/2);
-    sse3d_rotation_y_matrix(&model_rotation_y, angle += 0.003f);
+    sse3d_rotation_x_matrix(&model_rotation_x, 0);
+    sse3d_rotation_y_matrix(&model_rotation_y, angle += 0.01f);
     sse3d_translation_matrix(&model_translation, 0, -0.2, 0);
+    
     sse3d_multiply_matrix(&model, &model_rotation_y, &model_rotation);
+    sse3d_multiply_matrix(&model, &model_rotation_x, &model);
     sse3d_multiply_matrix(&model, &model_scale, &model);
     sse3d_multiply_matrix(&model, &model_translation, &model);
     
-    
     sse3d_scale_matrix(&projection_scale, 5*height/2, 5*height/2, 1.0f);
     sse3d_translation_matrix(&projection_translation, width/2, height/2, 0.0f);
-    //sse3d_translation_matrix(&transform, width/2, height/2, 0);
     sse3d_multiply_matrix(&projection, &projection_translation, &projection_scale);
 
-    //sse3d_lookat_matrix(&lookat, &camera, &target, &upvector);
-    //sse3d_projection_matrix(&projection, width, height, -1, 1);
-    //sse3d_multiply_matrix(&transform, &projection, &lookat);
     sse3d_multiply_matrix(&transform, &projection, &model);
-
-    //sse3d_multiply_matrix(&identity, &perspective, &identity);
-    //sse3d_multiply_matrix(&identity, &rotation1, &identity);
-    //sse3d_multiply_matrix(&identity, &rotation2, &identity);
-    //sse3d_multiply_matrix(&identity, &translate, &identity);
-    
     sse3d_multiply_vectors(v_transformed, &transform, vertices, nr_vertices);
     sse3d_multiply_vectors(n_transformed, &model, normals, nr_normals);
 
@@ -82,34 +70,6 @@ void render(unsigned short *z_buffer, unsigned char *n_buffer, int width, int he
             v_transformed + indices[i+0] - 1, v_transformed + indices[i+1] - 1, v_transformed + indices[i+2] - 1,
             n_transformed + indices[i+3] - 1, n_transformed + indices[i+4] - 1, n_transformed + indices[i+5] - 1);
     }
-    
-    /*
-    static float angle = 0.0f;
-    
-    static aligned sse3d_vector_t v[3]     = {
-        { 320.0f,  10.0f, 0.1f, 1.0f },
-        { 0.0f,   50.5f, 0.4f, 1.0f },
-        { 160.0f,  220.0f, 1.0f, 1.0f }
-    };
-    static aligned sse3d_vector_t d[3];
-
-    static aligned sse3d_matrix_t rot, t, it, identity;
-    
-    angle += 0.01f;
-
-    sse3d_identity_matrix(&identity);
-    sse3d_translation_matrix(&t, FRAMEBUFFER_WIDTH/2, FRAMEBUFFER_HEIGHT/2, 0);
-    sse3d_translation_matrix(&it, -FRAMEBUFFER_WIDTH/2, -FRAMEBUFFER_HEIGHT/2, 0);
-    sse3d_rotation_z_matrix(&rot, angle);
-
-    
-    sse3d_multiply_matrix(&t, &t, &rot);
-    sse3d_multiply_matrix(&t, &t, &it);
-    sse3d_multiply_vectors(d, &t, v, 3);
-    
-    sse3d_prepare_render_vectors(d, 3);
-    sse3d_draw_triangle(buffer, width, height, d+0, d+1, d+2);
-    */
 }
 
 
@@ -163,7 +123,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 		}
 
         InvalidateRect(window->handle, &windowRect, FALSE);
-		//Sleep(10);
+		Sleep(1);
 	}
 }
 

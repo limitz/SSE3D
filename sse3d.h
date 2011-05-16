@@ -689,16 +689,22 @@ void sse3d_draw_triangle(unsigned short *z_buffer, unsigned int* n_buffer, int w
                     
                     if ((unsigned short)(depth * 0xFFFF) > z_buffer[i]) 
                     {
+                        float r, g, b, v;
+
+                        currnormal.x = (1 + normal_from.x + (normal_to.x - normal_from.x) * interpolation) / 2;
+                        currnormal.y = (1 + normal_from.y + (normal_to.y - normal_from.y) * interpolation) / 2;
+                        currnormal.z = (1 + normal_from.z + (normal_to.z - normal_from.z) * interpolation) / 2;
                         
-                        currnormal.x = normal_from.x + (normal_to.x - normal_from.x) * interpolation;
-                        currnormal.y = normal_from.y + (normal_to.y - normal_from.y) * interpolation;
-                        currnormal.z = normal_from.z + (normal_to.z - normal_from.z) * interpolation;
-                        //currnormal = normal_to;
-                        
+                        v = currnormal.z * currnormal.y;
+
+                        r = currnormal.x * v;
+                        g = currnormal.y * v;
+                        b = currnormal.z * v;
+
                         z_buffer[i] = (unsigned short) (depth * 0xFFFF);
-                        n_buffer[i] = (unsigned char)((currnormal.x+1) * 0x7F) << 16 | 
-                                      (unsigned char)((currnormal.y+1) * 0x7F) << 8 | 
-                                      (unsigned char)((currnormal.z+1) * 0x7F) << 0;
+                        n_buffer[i] = ((unsigned char)(r * 0xFF * depth)) << 16 | 
+                                      ((unsigned char)(g * 0xFF * depth)) << 8 | 
+                                      ((unsigned char)(b * 0xFF * depth)) << 0;
                     }
                 }
             }
