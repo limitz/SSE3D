@@ -502,8 +502,9 @@ void sse3d_draw_triangle(unsigned char *scanlines, int width, int height, sse3d_
 {
     int i;
     float y;
-    aligned sse3d_vector_t frustrum_min = {0, 0, 0, 0};
-    aligned sse3d_vector_t frustrum_max = {FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT,1, 0};
+
+    aligned sse3d_vector_t frustrum_min = {0, 0, -1000, 0};
+    aligned sse3d_vector_t frustrum_max = {FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT,1000, 0};
     aligned sse3d_m128_t   clip;
     aligned sse3d_vector_t min, max;
     
@@ -511,6 +512,10 @@ void sse3d_draw_triangle(unsigned char *scanlines, int width, int height, sse3d_
     aligned sse3d_m128_t m128_span = {0, 0, 0, 0};
     
     sse3d_vector_t *va,*vb,*vc;
+
+    if (v0 == v1) return;
+    if (v1 == v2) return;
+    if (v2 == v0) return;
 
     __asm
     {
@@ -540,15 +545,15 @@ void sse3d_draw_triangle(unsigned char *scanlines, int width, int height, sse3d_
         
         movaps min, xmm0
         movaps max, xmm1
-        //cmpltps xmm1, xmm2
-        //cmpltps xmm3, xmm0
-        //andps   xmm1, xmm3
-        //movaps  clip, xmm1
+        cmpltps xmm1, xmm2
+        cmpltps xmm3, xmm0
+        andps   xmm1, xmm3
+        movaps  clip, xmm1
 
         
     }   
 
-    //if (clip.i32[0] || clip.i32[1] || clip.i32[2] || clip.i32[3]) return;
+    if (clip.i32[0] || clip.i32[1] || clip.i32[2] || clip.i32[3]) return;
 
     
     scanlines += ((int)min.y) * width;
@@ -617,6 +622,7 @@ void sse3d_draw_triangle(unsigned char *scanlines, int width, int height, sse3d_
         }
 
         {
+            
             if (m128_span.f32[2] > m128_span.f32[0])
             {
                 float tmp = m128_span.f32[0];
@@ -626,12 +632,15 @@ void sse3d_draw_triangle(unsigned char *scanlines, int width, int height, sse3d_
                 m128_span.f32[1] = m128_span.f32[3];
                 m128_span.f32[3] = tmp;
             }
+            
             {
                 float dx = m128_span.f32[0] - m128_span.f32[2];
                 float dz = m128_span.f32[1] - m128_span.f32[3];
-                for (i=(int)m128_span.f32[2]; i<(int)m128_span.f32[0]; i++)
+                for (i=(int)m128_span.f32[2]; i<=(int)m128_span.f32[0]; i++)
                 {
-                    scanlines[i] = ((i - (int)m128_span.f32[2])/dx * dz + m128_span.f32[3]) * 0xFF;
+                    unsigned char v = (200 - ((i - (int)m128_span.f32[2])/dx * dz + m128_span.f32[3]) / 2000) * 0xFF;
+                    if (v > scanlines[i]) scanlines[i] = v;//0xFF;
+                    //scanlines[i] = 0xFF;
                 }
             }
         }

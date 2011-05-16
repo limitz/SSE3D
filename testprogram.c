@@ -25,8 +25,36 @@ void print_vector(const char *name, const sse3d_vector_t *vector)
     printf("VECTOR: %s\n[%0.3f %0.3f %0.3f %0.3f]\n\n", name, vector->x, vector->y, vector->z, vector->w);
 }
 
+aligned sse3d_vector_t vertices[10000];
+aligned sse3d_vector_t transformed[10000];
+int indices[15000];
+
+int nr_vertices, nr_indices;
+
 void render(unsigned char* buffer, int width, int height)
 {
+    int i;
+    static float angle = 0;
+    static aligned sse3d_matrix_t identity, translate, rotation1, rotation2;
+
+    sse3d_scale_matrix(&identity, 10, 10, 10);
+    sse3d_translation_matrix(&translate, 240, 120, 10);
+    sse3d_rotation_x_matrix(&rotation1, -M_PI/2);
+    sse3d_rotation_y_matrix(&rotation2, angle += 0.01);
+
+    sse3d_multiply_matrix(&identity, &rotation1, &identity);
+    sse3d_multiply_matrix(&identity, &rotation2, &identity);
+    sse3d_multiply_matrix(&identity, &translate, &identity);
+    
+    sse3d_multiply_vectors(transformed, &identity, vertices, nr_vertices);
+
+    sse3d_prepare_render_vectors(transformed, nr_vertices);
+    for (i=0; i<nr_indices; i+=3)
+    {
+        sse3d_draw_triangle(buffer, width, height, transformed + indices[i] - 1, transformed + indices[i+1] - 1, transformed + indices[i+2] - 1);
+    }
+    
+    /*
     static float angle = 0.0f;
     
     static aligned sse3d_vector_t v[3]     = {
@@ -49,17 +77,41 @@ void render(unsigned char* buffer, int width, int height)
     sse3d_multiply_matrix(&t, &t, &rot);
     sse3d_multiply_matrix(&t, &t, &it);
     sse3d_multiply_vectors(d, &t, v, 3);
+    
     sse3d_prepare_render_vectors(d, 3);
     sse3d_draw_triangle(buffer, width, height, d+0, d+1, d+2);
+    */
 }
+
 
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, int showCmd)
 {
     MSG msg;
     RECT windowRect;
-    
-    sse3d_window_t* window = sse3d_create_window(instance, render);
+    char buffer[1024];
 
+    sse3d_window_t* window;
+
+    FILE *dragon = fopen("dragon.txt", "r");
+    while (fgets(buffer, 1023, dragon))
+    {
+        if (buffer[0] == 'v' && buffer[1] == ' ')
+        {
+            sscanf(buffer, "v %f %f %f", &vertices[nr_vertices].x, &vertices[nr_vertices].y, &vertices[nr_vertices].z);
+            vertices[nr_vertices].w = 1;
+            nr_vertices++;
+        }
+        if (buffer[0] == 'f' && buffer[1] == ' ')
+        {
+            int a, b, c;
+            sscanf(buffer, "f %d/%*d/%*d %d/%*d/%*d %d/%*d/%*d", &a, &b, &c);
+            indices[nr_indices++] = a;
+            indices[nr_indices++] = b;
+            indices[nr_indices++] = c;
+        }
+    }
+
+    window = sse3d_create_window(instance, render);
     SetRect(&windowRect, 0, 0, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT);
 	while (1)
 	{
@@ -75,7 +127,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 	}
 }
 
-int main_()
+int main()
 {
     aligned sse3d_matrix_t matrix;
     aligned sse3d_matrix_t translation;
