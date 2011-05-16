@@ -541,21 +541,12 @@ void sse3d_draw_triangle(unsigned char *scanlines, int width, int height, sse3d_
         maxps  xmm1, xmm6
         minps  xmm0, xmm7
         minps  xmm1, xmm7
-
         
         movaps min, xmm0
         movaps max, xmm1
-        cmpltps xmm1, xmm2
-        cmpltps xmm3, xmm0
-        andps   xmm1, xmm3
-        movaps  clip, xmm1
-
         
     }   
 
-    if (clip.i32[0] || clip.i32[1] || clip.i32[2] || clip.i32[3]) return;
-
-    
     scanlines += ((int)min.y) * width;
     for (y = floor(min.y) + 0.5; y < max.y && y < height; y+=1, scanlines += width)
     {
@@ -639,8 +630,7 @@ void sse3d_draw_triangle(unsigned char *scanlines, int width, int height, sse3d_
                 for (i=(int)m128_span.f32[2]; i<=(int)m128_span.f32[0]; i++)
                 {
                     unsigned char v = (200 - ((i - (int)m128_span.f32[2])/dx * dz + m128_span.f32[3]) / 2000) * 0xFF;
-                    if (v > scanlines[i]) scanlines[i] = v;//0xFF;
-                    //scanlines[i] = 0xFF;
+                    if (v > scanlines[i]) scanlines[i] = v;
                 }
             }
         }
