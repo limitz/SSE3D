@@ -73,7 +73,7 @@ void render(unsigned short *z_buffer, unsigned char *n_buffer, int width, int he
     //sse3d_multiply_matrix(&identity, &translate, &identity);
     
     sse3d_multiply_vectors(v_transformed, &transform, vertices, nr_vertices);
-    sse3d_multiply_vectors(n_transformed, &identity, normals, nr_normals);
+    sse3d_multiply_vectors(n_transformed, &model, normals, nr_normals);
 
     sse3d_prepare_render_vectors(v_transformed, nr_vertices);
     for (i=0; i<nr_indices; i+=6)
@@ -133,7 +133,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
         if (buffer[0] == 'v' && buffer[1] == 'n')
         {
             sscanf(buffer, "vn %f %f %f", &normals[nr_normals].x, &normals[nr_normals].y, &normals[nr_normals].z);
-            normals[nr_normals].w = 1;
+            normals[nr_normals].w = 0;
             nr_normals++;
         }
         if (buffer[0] == 'f' && buffer[1] == ' ')
