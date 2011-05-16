@@ -14,7 +14,7 @@
 #include <windows.h>
 #include "sse3d.h"
 
-typedef void (*renderproc)(unsigned char *z_buffer, unsigned int *n_buffer, int width, int height);
+typedef void (*renderproc)(unsigned short *z_buffer, unsigned int *n_buffer, int width, int height);
 
 typedef struct
 {
@@ -68,7 +68,7 @@ LRESULT CALLBACK sse3d_windowproc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
 
 				RECT invalidRect = paint.rcPaint;
 				SetViewportOrgEx(hdc, 0, 0, NULL);
-                memset(instance->z_buffer, 0x00, FRAMEBUFFER_WIDTH * FRAMEBUFFER_HEIGHT);
+                memset(instance->z_buffer, 0x00, FRAMEBUFFER_WIDTH * FRAMEBUFFER_HEIGHT * 2);
                 memset(instance->n_buffer, 0x00, FRAMEBUFFER_WIDTH * FRAMEBUFFER_HEIGHT * 4);
                 if (instance->render) instance->render(instance->z_buffer, instance->n_buffer, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT);
 
@@ -123,9 +123,9 @@ sse3d_window_t* sse3d_create_window(HINSTANCE instance, renderproc render)
     result->n_buffer_dc = CreateCompatibleDC(hdc);
     result->render = render;
 
-    bminfo = (BITMAPINFO*) calloc(1, sizeof(BITMAPINFO) + sizeof(RGBQUAD) * 256);
+    bminfo = (BITMAPINFO*) calloc(1, sizeof(BITMAPINFO) + sizeof(RGBQUAD) * 65536);
     bminfo->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-    bminfo->bmiHeader.biBitCount = 8;
+    bminfo->bmiHeader.biBitCount = 16;
     bminfo->bmiHeader.biWidth =  FRAMEBUFFER_WIDTH;
     bminfo->bmiHeader.biHeight = FRAMEBUFFER_HEIGHT;
     bminfo->bmiHeader.biPlanes = 1;
@@ -133,11 +133,11 @@ sse3d_window_t* sse3d_create_window(HINSTANCE instance, renderproc render)
 
     palette = (RGBQUAD*)(((char*)bminfo) + bminfo->bmiHeader.biSize);
 
-    for (i=0; i<256; i++)
+    for (i=0; i<65536; i++)
     {
-        palette[i].rgbRed = i;
-        palette[i].rgbGreen = i;
-        palette[i].rgbBlue = i;
+        palette[i].rgbRed = i>>8;
+        palette[i].rgbGreen = i>>8;
+        palette[i].rgbBlue = i>>8;
     }
 
     result->z_buffer_bm = CreateDIBSection(result->z_buffer_dc, bminfo, DIB_RGB_COLORS, &result->z_buffer, NULL, NULL);

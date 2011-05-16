@@ -33,7 +33,7 @@ int indices[30000];
 
 int nr_vertices, nr_indices, nr_normals;
 
-void render(unsigned char *z_buffer, unsigned char *n_buffer, int width, int height)
+void render(unsigned short *z_buffer, unsigned char *n_buffer, int width, int height)
 {
     int i;
     static float angle = 0;
@@ -73,7 +73,7 @@ void render(unsigned char *z_buffer, unsigned char *n_buffer, int width, int hei
     //sse3d_multiply_matrix(&identity, &translate, &identity);
     
     sse3d_multiply_vectors(v_transformed, &transform, vertices, nr_vertices);
-    sse3d_multiply_vectors(n_transformed, &model, normals, nr_normals);
+    sse3d_multiply_vectors(n_transformed, &identity, normals, nr_normals);
 
     sse3d_prepare_render_vectors(v_transformed, nr_vertices);
     for (i=0; i<nr_indices; i+=6)
@@ -133,19 +133,21 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
         if (buffer[0] == 'v' && buffer[1] == 'n')
         {
             sscanf(buffer, "vn %f %f %f", &normals[nr_normals].x, &normals[nr_normals].y, &normals[nr_normals].z);
-            normals[nr_normals].w = 0;
+            normals[nr_normals].w = 1;
             nr_normals++;
         }
         if (buffer[0] == 'f' && buffer[1] == ' ')
         {
             int a, b, c, na, nb, nc;
-            sscanf(buffer, "f %d/%*d/%d %d/%*d/%d %d/%*d/%d", &a, &na, &b, &nb, &c, &nc);
-            indices[nr_indices++] = a;
-            indices[nr_indices++] = b;
-            indices[nr_indices++] = c;
-            indices[nr_indices++] = na;
-            indices[nr_indices++] = nb;
-            indices[nr_indices++] = nc;
+            if (sscanf(buffer, "f %d/%*d/%d %d/%*d/%d %d/%*d/%d", &a, &na, &b, &nb, &c, &nc))
+            {
+                indices[nr_indices++] = a;
+                indices[nr_indices++] = b;
+                indices[nr_indices++] = c;
+                indices[nr_indices++] = na;
+                indices[nr_indices++] = nb;
+                indices[nr_indices++] = nc;
+            }
         }
     }
 

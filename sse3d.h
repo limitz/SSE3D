@@ -517,7 +517,7 @@ void sse3d_prepare_render_vectors(sse3d_vector_t *vectors, int nr_vec)
     }
 }
 
-void sse3d_draw_triangle(unsigned char *z_buffer, unsigned int* n_buffer, int width, int height, 
+void sse3d_draw_triangle(unsigned short *z_buffer, unsigned int* n_buffer, int width, int height, 
                          sse3d_vector_t *v0, sse3d_vector_t *v1, sse3d_vector_t *v2, 
                          sse3d_vector_t *n0, sse3d_vector_t *n1, sse3d_vector_t *n2)
 {
@@ -533,8 +533,12 @@ void sse3d_draw_triangle(unsigned char *z_buffer, unsigned int* n_buffer, int wi
     
     aligned sse3d_m128_t m128_y = {0, 0, 0, 0};
     aligned sse3d_m128_t m128_span = {0, 0, 0, 0};
+    aligned sse3d_vector_t span_from = {0, 0, 0, 0};
+    aligned sse3d_vector_t span_to = {0, 0, 0, 0};
+    aligned sse3d_vector_t normal_from = {0, 0, 0, 0};
+    aligned sse3d_vector_t normal_to = {0, 0, 0, 0};
     
-    sse3d_vector_t *va,*vb,*vc;
+    sse3d_vector_t *va,*vb,*vc,*na,*nb,*nc;
 
     if (v0 == v1) return;
     if (v1 == v2) return;
@@ -582,22 +586,22 @@ void sse3d_draw_triangle(unsigned char *z_buffer, unsigned int* n_buffer, int wi
             if (v1->y < y)
             {
                 if (v2->y < y) continue;
-                else va = v0, vb = v2, vc = v1;
+                else va = v0, vb = v2, vc = v1, na = n0, nb = n2, nc = n1;
             }
             else if (v2->y < y)
             {
-                va = v0, vb = v1,vc = v2;
+                va = v0, vb = v1,vc = v2,na = n0, nb = n1,nc = n2;
             }
-            else va = v2, vb = v0,vc = v1;
+            else va = v2, vb = v0,vc = v1,na = n2, nb = n0,nc = n1;
         }
         else if (v1->y < y)
         {
-            if (v2->y < y) va = v2, vb = v0,vc = v1;
-            else va = v0, vb = v1,vc = v2;
+            if (v2->y < y) va = v2, vb = v0,vc = v1, na = n2, nb = n0,nc = n1;
+            else va = v0, vb = v1,vc = v2,na = n0, nb = n1,nc = n2;
         }
         else if (v2->y < y)
         {
-            va = v1, vb = v2,vc = v0;
+            va = v1, vb = v2,vc = v0, na = n1, nb = n2,nc = n0;
         }
         else continue;
     
@@ -625,51 +629,76 @@ void sse3d_draw_triangle(unsigned char *z_buffer, unsigned int* n_buffer, int wi
             mulps  xmm3, xmm6       ;// xmm3 = Bdelta * Bi
             addps  xmm0, xmm1       ;// xmm0 = Aintersect (Aix, Aiy, Aiz)
             addps  xmm2, xmm3       ;// xmm2 = Bintersect (Bix, Biy, Biz)
-            movaps xmm6, [frustrum_min]
+            movaps xmm5, [frustrum_min]
             movaps xmm7, [frustrum_max]
-            maxps  xmm0, xmm6
-            maxps  xmm2, xmm6
+            maxps  xmm0, xmm5
+            maxps  xmm2, xmm5
             minps  xmm0, xmm7
             minps  xmm2, xmm7
-            shufps xmm0, xmm2, 0x88 ;// xmm0 = Aix, Aiz, Bix, Biz
-            lea edi, m128_span
-            movaps [edi], xmm0
+            movaps [span_from], xmm0
+            movaps [span_to], xmm2
+
+            mov esi, na
+            movaps xmm0, [esi]      ;// xmm0 = n1A
+            mov esi, nb
+            movaps xmm1, [esi]      ;// xmm1 = n1B
+            movaps xmm2, xmm1       ;// xmm2 = n2A
+            mov esi, nc
+            movaps xmm3, [esi]      ;// xmm3 = n1B
+            subps  xmm1, xmm0       ;// xmm1 = n1B - n1A = nAdelta (nAdx, nAdy, nAdz, 0)
+            subps  xmm3, xmm2       ;// xmm3 = n2B - n2A = nBdelta (nBdx, nBdy, nBdz, 0)
+            mulps  xmm1, xmm4       ;// xmm4 = nAdelta * Ai
+            mulps  xmm3, xmm6       ;// xmm3 = nBdelta * Bi
+            addps  xmm0, xmm1       ;// xmm0 = nAintersect (Aix, Aiy, Aiz)
+            addps  xmm2, xmm3       ;// xmm2 = nBintersect (Bix, Biy, Biz)
+            
+            movaps xmm4, xmm2
+            call _sse3d_normalize_xmm0
+            movaps [normal_from], xmm0
+            movaps xmm0, xmm4
+            call _sse3d_normalize_xmm0
+            movaps [normal_to], xmm0
         }
 
         {
             
-            if (m128_span.f32[2] > m128_span.f32[0])
+            if (span_from.x > span_to.x)
             {
-                float tmp = m128_span.f32[0];
-                m128_span.f32[0] = m128_span.f32[2];
-                m128_span.f32[2] = tmp;
-                tmp = m128_span.f32[1];
-                m128_span.f32[1] = m128_span.f32[3];
-                m128_span.f32[3] = tmp;
+                aligned sse3d_vector_t s_tmp = span_from;
+                aligned sse3d_vector_t n_tmp = normal_from;
+                span_from = span_to;
+                span_to = s_tmp;
+                normal_from = normal_to;
+                normal_to = n_tmp;
             }
             
             {
-
-                float dx = m128_span.f32[0] - m128_span.f32[2];
-                float dz = m128_span.f32[1] - m128_span.f32[3];
-                sse3d_normalize_vectors(n0, n0, 1);
-                sse3d_normalize_vectors(n1, n1, 1);
-                sse3d_normalize_vectors(n2, n2, 1);
-                for (i=(int)m128_span.f32[2]; i<(int)m128_span.f32[0]; i++)
+                float dx = span_to.x - span_from.x;
+                float dz = span_to.z - span_from.z;
+                sse3d_vector_t currnormal;
+                for (i=(int)span_from.x; i<(int)span_to.x; i++)
                 {
-                    float v = (((i - (int)m128_span.f32[2]) / dx) * dz + m128_span.f32[3]);
-                    if (v>1) continue;
-                    if (v<-1) continue;
+                    float interpolation = (i - (int)span_from.x) / dx;
+                    float depth = interpolation * dz + span_from.z;
                     
-                    v+= 1;
-                    v/=2;
+                    if (depth>1) continue;
+                    if (depth<-1) continue;
                     
-                    if ((unsigned char)(v * 0xFF) > z_buffer[i]) 
+                    depth+= 1;
+                    depth/=2;
+                    
+                    if ((unsigned short)(depth * 0xFFFF) > z_buffer[i]) 
                     {
-                        float normal = ((n0->z + n1->z + n2->z)/3);
-                        z_buffer[i] = (unsigned char) (v * 0xFF);
-                        if (normal < 0) continue;
-                        n_buffer[i] =  normal * z_buffer[i];
+                        
+                        currnormal.x = normal_from.x + (normal_to.x - normal_from.x) * interpolation;
+                        currnormal.y = normal_from.y + (normal_to.y - normal_from.y) * interpolation;
+                        currnormal.z = normal_from.z + (normal_to.z - normal_from.z) * interpolation;
+                        //currnormal = normal_to;
+                        
+                        z_buffer[i] = (unsigned short) (depth * 0xFFFF);
+                        n_buffer[i] = (unsigned char)((currnormal.x+1) * 0x7F) << 16 | 
+                                      (unsigned char)((currnormal.y+1) * 0x7F) << 8 | 
+                                      (unsigned char)((currnormal.z+1) * 0x7F) << 0;
                     }
                 }
             }
