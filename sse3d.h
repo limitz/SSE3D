@@ -72,7 +72,7 @@ typedef struct
     };
 } sse3d_matrix_t;
 
-typedef void (*pixelshaderproc)(unsigned int *out, sse3d_vector_t *normal);
+typedef void (*pixelshaderproc)(unsigned char *color, sse3d_vector_t *normal, float depth);
 
 typedef struct
 {
@@ -626,30 +626,21 @@ void sse3d_draw_triangle(sse3d_render_ctx_t* ctx,
                     
                     if (depth > z_buffer_ptr[i]) 
                     {
-						aligned sse3d_vector_t light = {0, -0.1f, 1, 0};
-						static aligned sse3d_matrix_t rotation;
-                        float r, g, b, v;
 						currnormal.x = (normal_from.x + (normal_to.x - normal_from.x) * interpolation);
                         currnormal.y = (normal_from.y + (normal_to.y - normal_from.y) * interpolation);
                         currnormal.z = (normal_from.z + (normal_to.z - normal_from.z) * interpolation);
 						currnormal.w = 0;
                         sse3d_normalize_vectors(&currnormal,&currnormal, 1);
-						sse3d_normalize_vectors(&light, &light,1);
-						v = sse3d_dotproduct_vector(&currnormal, &light); //sqrt(currnormal.z + currnormal.y);
 						
-						if (v < 0) v = 0;
-						v = (pow(v, 6));
-						v = (sin(v*M_PI) + 5) / 6;
-                        r = ((1 + currnormal.y) / 2) * v;
-                        g = ((1 + currnormal.x) / 2) * v;
-                        b = ((1 + currnormal.z) / 2) * v;
-
                         z_buffer_ptr[i] = depth;
-                        
-                        n_buffer_ptr[i*4+0] = ((unsigned char)(r * 0xFF * depth));
-                        n_buffer_ptr[i*4+1] = ((unsigned char)(g * 0xFF * depth));
-                        n_buffer_ptr[i*4+2] = ((unsigned char)(b * 0xFF * depth));
-                        
+
+                        if (ctx->p_shader) ctx->p_shader(n_buffer_ptr + i*4, &currnormal, depth);
+                        else
+                        {
+						    n_buffer_ptr[i*4 + 0] = 0xFF;
+                            n_buffer_ptr[i*4 + 1] = 0xFF;
+                            n_buffer_ptr[i*4 + 2] = 0xFF;
+                        }
                     }
                 }
             }

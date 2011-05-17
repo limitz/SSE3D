@@ -3,9 +3,9 @@
 #ifndef SSE3D_DRAGON
 #define SSE3D_DRAGON
 
-const int dragon_nr_vertices = 2652;
-const int dragon_nr_normals = 4278;
-const int dragon_nr_indices = 28794;
+#define dragon_nr_vertices  2652
+#define dragon_nr_normals   4278
+#define dragon_nr_indices   28794
 
 aligned sse3d_vector_t dragon_vertices[] = {
     {-0.028406400046f,-0.076890600393f, 0.156820799183f, 1.0f }, {-0.024046799599f,-0.061177800718f, 0.150202394943f, 1.0f }, {-0.005742999783f,-0.093378198444f, 0.153870798486f, 1.0f }, {-0.041375597983f,-0.058690198540f, 0.153496595766f, 1.0f }, { 0.036184798862f,-0.067766598140f, 0.146990601115f, 1.0f }, { 0.002086999966f,-0.061824396659f, 0.136810995859f, 1.0f }, { 0.040012997687f,-0.065161598656f, 0.140342594825f, 1.0f }, { 0.006203200082f,-0.093586595351f, 0.146431795662f, 1.0f }, 
