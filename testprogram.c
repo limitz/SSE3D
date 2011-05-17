@@ -47,10 +47,10 @@ void render(unsigned float *z_buffer, unsigned int *n_buffer, int width, int hei
     static aligned sse3d_matrix_t identity, transform;
 
     sse3d_identity_matrix(&identity);
-    sse3d_scale_matrix(&model_scale, .02f, .02f, .02f);
+    sse3d_scale_matrix(&model_scale, 1, 1, 1);
     sse3d_rotation_x_matrix(&model_rotation, -M_PI/2.0f);
     sse3d_rotation_x_matrix(&model_rotation_x, 0);
-    sse3d_rotation_y_matrix(&model_rotation_y, angle += 0.0016f);
+    sse3d_rotation_y_matrix(&model_rotation_y, angle += 0.005f);
     sse3d_translation_matrix(&model_translation, 0.0f, -0.1f, 0.15f);
     
     sse3d_multiply_matrix(&model, &model_rotation_y, &model_rotation);
@@ -63,11 +63,11 @@ void render(unsigned float *z_buffer, unsigned int *n_buffer, int width, int hei
     sse3d_multiply_matrix(&projection, &projection_translation, &projection_scale);
 
     sse3d_multiply_matrix(&transform, &projection, &model);
-    sse3d_multiply_vectors(v_transformed, &transform, vertices, nr_vertices);
-    sse3d_multiply_vectors(n_transformed, &model, normals, nr_normals);
+    sse3d_multiply_vectors(v_transformed, &transform, dragon_vertices, dragon_nr_vertices);
+    sse3d_multiply_vectors(n_transformed, &model, dragon_normals, dragon_nr_normals);
 
-    sse3d_prepare_render_vectors(v_transformed, nr_vertices);
-    for (i=0; i<nr_indices; i+=6)
+    sse3d_prepare_render_vectors(v_transformed, dragon_nr_vertices);
+    for (i=0; i<dragon_nr_indices; i+=6)
     {
         sse3d_render_ctx_t ctx;
         ctx.width = width;
@@ -76,11 +76,12 @@ void render(unsigned float *z_buffer, unsigned int *n_buffer, int width, int hei
         ctx.z_buffer = z_buffer;
 
         sse3d_draw_triangle(&ctx, 
-            v_transformed + indices[i+0] - 1, v_transformed + indices[i+1] - 1, v_transformed + indices[i+2] - 1,
-            n_transformed + indices[i+3] - 1, n_transformed + indices[i+4] - 1, n_transformed + indices[i+5] - 1);
+            v_transformed + dragon_indices[i+0], v_transformed + dragon_indices[i+1], v_transformed + dragon_indices[i+2],
+            n_transformed + dragon_indices[i+3], n_transformed + dragon_indices[i+4], n_transformed + dragon_indices[i+5]);
     }
 }
 
+int swapat = 0;
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, int showCmd)
 {
     int i;
@@ -90,7 +91,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 
     sse3d_window_t* window;
 
-    
+    /*
     FILE *dragon = fopen("dragon.txt", "r");
     FILE* output = fopen("sse3d_dragon.h", "w");
     while (fgets(buffer, 1023, dragon))
@@ -120,12 +121,15 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
                 indices[nr_indices++] = nc;
             }
         }
+        if (!memcmp("swap", buffer,4))
+        {
+            swapat = nr_indices;
+        }
     }
     fprintf(output, "#pragma once\n\n#ifndef SSE3D_DRAGON\n#define SSE3D_DRAGON\n\n");
     fprintf(output, "const int dragon_nr_vertices = %d;\n",  nr_vertices);
     fprintf(output, "const int dragon_nr_normals = %d;\n",  nr_normals);
     fprintf(output, "const int dragon_nr_indices = %d;\n\n",  nr_indices);
-
    
     fprintf(output, "aligned sse3d_vector_t dragon_vertices[] = {\n    ");
     for (i=0; i<nr_vertices; i++)
@@ -143,17 +147,57 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
     }
     fprintf(output, "};\n\n");
 
-    fprintf(output, "aligned sse3d_vector_t dragon_indices[] = {\n    ");
+    for (i=0; i<nr_indices; i+=6)
+    {
+        float z;
+        sse3d_vector_t* va = vertices + indices[i+0] - 1;
+        sse3d_vector_t* vb = vertices + indices[i+1] - 1;
+        sse3d_vector_t* vc = vertices + indices[i+2] - 1;
+        sse3d_vector_t* na = normals + indices[i+3] - 1;
+        sse3d_vector_t* nb = normals + indices[i+4] - 1;
+        sse3d_vector_t* nc = normals + indices[i+5] - 1;
+
+        vb->x -= va->x;
+        vb->y -= va->y;
+        vb->z -= va->z;
+
+        vc->x -= va->x;
+        vc->y -= va->y;
+        vc->z -= va->z;
+
+        sse3d_crossproduct_vector(va, vb, vc);
+
+        na->x += nb->x + nc->x;
+        na->y += nb->y + nc->y;
+        na->z += nb->z + nc->z;
+
+        sse3d_normalize_vectors(na, na, 1);
+
+        
+        if (i >= swapat)
+        {
+            int tmp_v, tmp_n;
+            tmp_v = indices[i+1];
+            indices[i+1] = indices[i+2];
+            indices[i+2] = tmp_v;
+            tmp_n = indices[i+4];
+            indices[i+4] = indices[i+5];
+            indices[i+5] = tmp_n;
+        }
+        
+    }
+
+    fprintf(output, "aligned int dragon_indices[] = {\n    ");
     for (i=0; i<nr_indices; i++)
     {
-        fprintf(output, "%5d, ", indices[i]);
+        fprintf(output, "%5d, ", indices[i]-1);
         if (i%24 == 23) fprintf(output, "\n    ");
     }
     fprintf(output, "};\n\n#endif\n\n");
 
 
     fclose(output);
-    
+    */
     
     window = sse3d_create_window(instance, render);
     SetRect(&windowRect, 0, 0, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT);

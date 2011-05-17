@@ -537,12 +537,12 @@ void sse3d_draw_triangle(sse3d_render_ctx_t* ctx,
         {
             case 0x0:
             case 0x7: continue;
-            case 0x2:
-            case 0x5: va=v0, vb=v1, vc=v2, na=n0, nb=n1, nc=n2; break; 
-            case 0x3:
+            case 0x1: va=v1, vb=v2, vc=v0, na=n1, nb=n2, nc=n0; break; 
+            case 0x2: va=v0, vb=v1, vc=v2, na=n0, nb=n1, nc=n2; break; 
+            case 0x3: va=v1, vb=v0, vc=v2, na=n1, nb=n0, nc=n2; break; 
             case 0x4: va=v2, vb=v0, vc=v1, na=n2, nb=n0, nc=n1; break; 
-            case 0x1: 
-            case 0x6: va=v1, vb=v2, vc=v0, na=n1, nb=n2, nc=n0; break; 
+            case 0x5: va=v2, vb=v1, vc=v0, na=n2, nb=n1, nc=n0; break; 
+            case 0x6: va=v0, vb=v2, vc=v1, na=n0, nb=n2, nc=n1; break; 
         }
 
         m128_y.y = y;
