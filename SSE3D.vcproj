@@ -187,6 +187,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\sse3d_dragon.h"
+				>
+			</File>
+			<File
 				RelativePath=".\sse3d_window.h"
 				>
 			</File>

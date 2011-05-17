@@ -13,6 +13,7 @@
 
 #include <windows.h>
 #include "sse3d.h"
+#pragma comment(lib, "msimg32");
 
 typedef void (*renderproc)(unsigned short *z_buffer, unsigned int *n_buffer, int width, int height);
 
@@ -65,15 +66,22 @@ LRESULT CALLBACK sse3d_windowproc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
 			{
                 int i;
 				PAINTSTRUCT paint;
+				BLENDFUNCTION bf;
 				HDC hdc = BeginPaint(hwnd, &paint);
 
 				SetViewportOrgEx(hdc, 0, 0, NULL);
 
-                memset(instance->z_buffer, 0x00, FRAMEBUFFER_WIDTH * FRAMEBUFFER_HEIGHT * 2);
+                memset(instance->z_buffer, 0x00, FRAMEBUFFER_WIDTH * FRAMEBUFFER_HEIGHT * 4);
                 memset(instance->n_buffer, 0x00, FRAMEBUFFER_WIDTH * FRAMEBUFFER_HEIGHT * 4);
                 if (instance->render) instance->render(instance->z_buffer, instance->n_buffer, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT);
 
-                BitBlt(hdc, 0, 0, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT, instance->n_buffer_dc, 0, 0, SRCCOPY);
+				bf.BlendOp = AC_SRC_OVER;
+				bf.BlendFlags = 0;
+				bf.SourceConstantAlpha = 0x80;
+				bf.AlphaFormat = 0;
+
+				AlphaBlend(hdc, 0, 0, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT, instance->n_buffer_dc, 0, 0, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT, bf);
+                //BitBlt(hdc, 0, 0, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT, instance->n_buffer_dc, 0, 0, SRCCOPY);
 				EndPaint(hwnd, &paint);
 			}
 			return 0;
@@ -124,25 +132,15 @@ sse3d_window_t* sse3d_create_window(HINSTANCE instance, renderproc render)
     result->n_buffer_dc = CreateCompatibleDC(hdc);
     result->render = render;
 
-    bminfo = (BITMAPINFO*) calloc(1, sizeof(BITMAPINFO) + sizeof(RGBQUAD) * 65536);
+    bminfo = (BITMAPINFO*) calloc(1, sizeof(BITMAPINFO));
     bminfo->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-    bminfo->bmiHeader.biBitCount = 16;
+    bminfo->bmiHeader.biBitCount = 32;
     bminfo->bmiHeader.biWidth =  FRAMEBUFFER_WIDTH;
     bminfo->bmiHeader.biHeight = FRAMEBUFFER_HEIGHT;
     bminfo->bmiHeader.biPlanes = 1;
     bminfo->bmiHeader.biCompression = BI_RGB;
 
-    palette = (RGBQUAD*)(((char*)bminfo) + bminfo->bmiHeader.biSize);
-
-    for (i=0; i<65536; i++)
-    {
-        palette[i].rgbRed = i>>8;
-        palette[i].rgbGreen = i>>8;
-        palette[i].rgbBlue = i>>8;
-    }
-
     result->z_buffer_bm = CreateDIBSection(result->z_buffer_dc, bminfo, DIB_RGB_COLORS, &result->z_buffer, NULL, 0);
-    bminfo->bmiHeader.biBitCount = 32;
     result->n_buffer_bm = CreateDIBSection(result->n_buffer_dc, bminfo, DIB_RGB_COLORS, &result->n_buffer, NULL, 0);
 
     SelectObject(result->z_buffer_dc, result->z_buffer_bm);

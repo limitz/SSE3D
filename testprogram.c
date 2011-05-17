@@ -1,3 +1,5 @@
+#define _USE_MATH_DEFINES
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -5,6 +7,8 @@
 
 #include "sse3d.h"
 #include "sse3d_window.h"
+
+#include "sse3d_dragon.h"
 
 void print_matrix(const char *name, const sse3d_matrix_t *matrix)
 {
@@ -27,13 +31,13 @@ void print_vector(const char *name, const sse3d_vector_t *vector)
 
 aligned sse3d_vector_t vertices[10000];
 aligned sse3d_vector_t normals[10000];
+aligned int indices[30000];
+int nr_vertices, nr_normals, nr_indices;
+
 aligned sse3d_vector_t v_transformed[10000];
 aligned sse3d_vector_t n_transformed[10000];
-int indices[30000];
 
-int nr_vertices, nr_indices, nr_normals;
-
-void render(unsigned short *z_buffer, unsigned int *n_buffer, int width, int height)
+void render(unsigned float *z_buffer, unsigned int *n_buffer, int width, int height)
 {
     int i;
     static float angle = 0;
@@ -46,7 +50,7 @@ void render(unsigned short *z_buffer, unsigned int *n_buffer, int width, int hei
     sse3d_scale_matrix(&model_scale, .02f, .02f, .02f);
     sse3d_rotation_x_matrix(&model_rotation, -M_PI/2.0f);
     sse3d_rotation_x_matrix(&model_rotation_x, 0);
-    sse3d_rotation_y_matrix(&model_rotation_y, angle += 0.01f);
+    sse3d_rotation_y_matrix(&model_rotation_y, angle += 0.0016f);
     sse3d_translation_matrix(&model_translation, 0.0f, -0.1f, 0.15f);
     
     sse3d_multiply_matrix(&model, &model_rotation_y, &model_rotation);
@@ -54,7 +58,7 @@ void render(unsigned short *z_buffer, unsigned int *n_buffer, int width, int hei
     sse3d_multiply_matrix(&model, &model_scale, &model);
     sse3d_multiply_matrix(&model, &model_translation, &model);
     
-    sse3d_scale_matrix(&projection_scale, 2.7f * height / 2.0f, 2.7f * height / 2.0f, 1.0f);
+    sse3d_scale_matrix(&projection_scale, 3.7f * height / 2.0f, 3.7f * height / 2.0f, 1.0f);
     sse3d_translation_matrix(&projection_translation, width / 2.0f, height / 2.0f, 0.0f);
     sse3d_multiply_matrix(&projection, &projection_translation, &projection_scale);
 
@@ -65,22 +69,30 @@ void render(unsigned short *z_buffer, unsigned int *n_buffer, int width, int hei
     sse3d_prepare_render_vectors(v_transformed, nr_vertices);
     for (i=0; i<nr_indices; i+=6)
     {
-        sse3d_draw_triangle(z_buffer, n_buffer, width, height, 
+        sse3d_render_ctx_t ctx;
+        ctx.width = width;
+        ctx.height = height;
+        ctx.p_buffer = n_buffer;
+        ctx.z_buffer = z_buffer;
+
+        sse3d_draw_triangle(&ctx, 
             v_transformed + indices[i+0] - 1, v_transformed + indices[i+1] - 1, v_transformed + indices[i+2] - 1,
             n_transformed + indices[i+3] - 1, n_transformed + indices[i+4] - 1, n_transformed + indices[i+5] - 1);
     }
 }
 
-
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, int showCmd)
 {
+    int i;
     MSG msg;
     RECT windowRect;
     char buffer[1024];
 
     sse3d_window_t* window;
 
+    
     FILE *dragon = fopen("dragon.txt", "r");
+    FILE* output = fopen("sse3d_dragon.h", "w");
     while (fgets(buffer, 1023, dragon))
     {
         if (buffer[0] == 'v' && buffer[1] == ' ')
@@ -109,7 +121,40 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
             }
         }
     }
+    fprintf(output, "#pragma once\n\n#ifndef SSE3D_DRAGON\n#define SSE3D_DRAGON\n\n");
+    fprintf(output, "const int dragon_nr_vertices = %d;\n",  nr_vertices);
+    fprintf(output, "const int dragon_nr_normals = %d;\n",  nr_normals);
+    fprintf(output, "const int dragon_nr_indices = %d;\n\n",  nr_indices);
 
+   
+    fprintf(output, "aligned sse3d_vector_t dragon_vertices[] = {\n    ");
+    for (i=0; i<nr_vertices; i++)
+    {
+        fprintf(output, "{%s%0.12ff,%s%0.12ff,%s%0.12ff, 1.0f }, ", vertices[i].x > 0 ? " " : "", vertices[i].x *  .02f, vertices[i].y > 0 ? " " : "", vertices[i].y *  .02f, vertices[i].z > 0 ? " " : "", vertices[i].z *  .02f);
+        if (i%8 == 7) fprintf(output, "\n    ");
+    }
+    fprintf(output, "};\n\n");
+    
+    fprintf(output, "aligned sse3d_vector_t dragon_normals[] = {\n    ");
+    for (i=0; i<nr_normals; i++)
+    {
+        fprintf(output, "{%s%0.12ff,%s%0.12ff,%s%0.12ff, 0.0f }, ", normals[i].x > 0 ? " " : "", normals[i].x, normals[i].y > 0 ? " " : "", normals[i].y, normals[i].z > 0 ? " " : "", normals[i].z);
+        if (i%8 == 7) fprintf(output, "\n    ");
+    }
+    fprintf(output, "};\n\n");
+
+    fprintf(output, "aligned sse3d_vector_t dragon_indices[] = {\n    ");
+    for (i=0; i<nr_indices; i++)
+    {
+        fprintf(output, "%5d, ", indices[i]);
+        if (i%24 == 23) fprintf(output, "\n    ");
+    }
+    fprintf(output, "};\n\n#endif\n\n");
+
+
+    fclose(output);
+    
+    
     window = sse3d_create_window(instance, render);
     SetRect(&windowRect, 0, 0, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT);
 	while (1)
@@ -122,87 +167,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 		}
 
         InvalidateRect(window->handle, &windowRect, FALSE);
-		Sleep(1);
+		//Sleep(10);
 	}
-}
-
-int main()
-{
-    aligned sse3d_matrix_t matrix;
-    aligned sse3d_matrix_t translation;
-    aligned sse3d_matrix_t rotation;
-    aligned sse3d_matrix_t scale;
-    aligned sse3d_matrix_t lookat;
-
-    aligned sse3d_vector_t vector;
-    aligned sse3d_vector_t va       = { 32.0f,  1.0f, 1.0f, 0.0f };
-    aligned sse3d_vector_t vb       = { 0.0f,   5.5f, 0.5f, 0.0f };
-    aligned sse3d_vector_t vc       = { 16.0f,  16.0f, 0.0f, 0.0f };
-    aligned sse3d_vector_t target   = { 0.0f, -4.0f, -3.0f, 0.0f };
-    aligned sse3d_vector_t camera   = { 0.0f,  0.0f,  1.0f, 0.0f };
-    aligned sse3d_vector_t up_vec   = { 0.0f,  1.0f,  0.0f, 0.0f };
-    aligned sse3d_vector_t original = { 1.0f,  2.0f,  3.0f, 1.0f };
-
-    int i;
-    int nr_matrix_tests = 10000000;
-    int nr_vec = 30000000;
-    sse3d_vector_t* vector_list;
-    clock_t start, end;
-    
-    int width = 32, height=16;
-    unsigned char* scanlines = (unsigned char*) calloc(width * height, 1);
-
-    sse3d_translation_matrix(&translation, 3, 3, 0);
-    sse3d_rotation_z_matrix(&rotation, M_PI/4);
-    sse3d_scale_matrix(&scale, 10, 10, 10);
-    sse3d_lookat_matrix(&lookat, &camera, &target, &up_vec);
-
-    print_matrix("translation", &translation);
-    print_matrix("rotation", &rotation);
-    print_matrix("scale", &scale);
-    print_matrix("lookat", &lookat);
-
-    memcpy(&matrix, &rotation, sizeof(sse3d_matrix_t));
-
-    sse3d_multiply_matrix(&matrix, &matrix, &matrix);
-    sse3d_multiply_matrix(&matrix, &matrix, &matrix);
-    sse3d_multiply_matrix(&matrix, &matrix, &matrix);
-
-    print_matrix("rotation^8 (identity)", &matrix);
-    
-    print_vector("original", &original);
-    sse3d_multiply_vectors(&vector, &translation, &original, 1);
-    print_vector("translated", &vector);
-    sse3d_multiply_vectors(&vector, &rotation, &vector, 1);
-    print_vector("translated * rotated", &vector);
-    sse3d_multiply_vectors(&vector, &scale, &vector, 1);
-    print_vector("translated * rotated * scaled", &vector);
-    
-    sse3d_multiply_matrix(&matrix, &scale, &rotation);
-    sse3d_multiply_matrix(&matrix, &matrix, &translation);
-    sse3d_multiply_vectors(&vector, &matrix, &original, 1);
-    print_vector("translated * rotated * scaled (via matrix premultiply)", &vector);
-
-    vector_list = aligned_malloc(sizeof(sse3d_vector_t) * nr_vec);
-    
-    start = clock();
-    sse3d_multiply_vectors(vector_list, &lookat, vector_list, nr_vec);
-    end = clock();
-
-    printf("Vertices per second: %0.0f\n", 1.0f / ((end-start) / (float)CLOCKS_PER_SEC) * nr_vec);
-
-    aligned_free(vector_list);
-
-    start = clock();
-    for (i=0; i<nr_matrix_tests; i++)
-    {
-        sse3d_multiply_matrix(&matrix, &matrix, &matrix);
-    }
-    end = clock();
-
-    printf("Matrix muliplications per second: %0.0f\n", 1.0f / ((end-start) / (float)CLOCKS_PER_SEC) * nr_matrix_tests);
-
-    
-    getchar();
-    return 0;
 }
