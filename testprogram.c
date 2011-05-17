@@ -47,14 +47,14 @@ void render(unsigned short *z_buffer, unsigned int *n_buffer, int width, int hei
     sse3d_rotation_x_matrix(&model_rotation, -M_PI/2.0f);
     sse3d_rotation_x_matrix(&model_rotation_x, 0);
     sse3d_rotation_y_matrix(&model_rotation_y, angle += 0.01f);
-    sse3d_translation_matrix(&model_translation, 0, -0.2f, 0);
+    sse3d_translation_matrix(&model_translation, 0.0f, -0.1f, 0.15f);
     
     sse3d_multiply_matrix(&model, &model_rotation_y, &model_rotation);
     sse3d_multiply_matrix(&model, &model_rotation_x, &model);
     sse3d_multiply_matrix(&model, &model_scale, &model);
     sse3d_multiply_matrix(&model, &model_translation, &model);
     
-    sse3d_scale_matrix(&projection_scale, 5.0f * height / 2.0f, 5.0f * height / 2.0f, 1.0f);
+    sse3d_scale_matrix(&projection_scale, 2.7f * height / 2.0f, 2.7f * height / 2.0f, 1.0f);
     sse3d_translation_matrix(&projection_translation, width / 2.0f, height / 2.0f, 0.0f);
     sse3d_multiply_matrix(&projection, &projection_translation, &projection_scale);
 

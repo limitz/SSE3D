@@ -63,10 +63,12 @@ LRESULT CALLBACK sse3d_windowproc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
 		case WM_PAINT:
 			if (GetUpdateRect(hwnd, NULL, FALSE))
 			{
+                int i;
 				PAINTSTRUCT paint;
 				HDC hdc = BeginPaint(hwnd, &paint);
 
 				SetViewportOrgEx(hdc, 0, 0, NULL);
+
                 memset(instance->z_buffer, 0x00, FRAMEBUFFER_WIDTH * FRAMEBUFFER_HEIGHT * 2);
                 memset(instance->n_buffer, 0x00, FRAMEBUFFER_WIDTH * FRAMEBUFFER_HEIGHT * 4);
                 if (instance->render) instance->render(instance->z_buffer, instance->n_buffer, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT);
