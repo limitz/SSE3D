@@ -228,7 +228,7 @@ LRESULT CALLBACK window_msg_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
  * Parameters:									*
  * [window] -> The window handle of the screen	*
  * -------------------------------------------- */
-void initialize_renderer(HWND window, int width, int height)
+int initialize_renderer(HWND window, int width, int height)
 {
 	HDC windowDC = GetDC(window);
 	
@@ -244,12 +244,17 @@ void initialize_renderer(HWND window, int width, int height)
     bminfo.bmiHeader.biCompression = BI_RGB;
 
 	s_hdc = CreateCompatibleDC(windowDC);
+    if (!s_hdc) return -1;
+
 	s_hbm = CreateDIBSection(s_hdc, &bminfo, DIB_RGB_COLORS, &s_params.p_buffer, NULL, 0);
+    if (!s_hbm) return -2;
+
 	SelectObject(s_hdc, s_hbm);
 
-	s_params.z_buffer = (float*) calloc(width * height, sizeof(float));
-	s_params.width = width;
+    s_params.width = width;
 	s_params.height = height;
+	s_params.z_buffer = (float*) calloc(width * height, sizeof(float));
+    if (!s_params.z_buffer) return -3;
 	
 	ReleaseDC(window, windowDC);
 
@@ -272,6 +277,8 @@ void initialize_renderer(HWND window, int width, int height)
 	s_model.vertices = dragon_vertices;
 	s_model.normals = dragon_normals;
 	s_model.indices = dragon_indices;
+
+    return 0;
 }
 
 /* ----------------------------------------------------- *
@@ -311,10 +318,15 @@ HWND initialize_window(HINSTANCE instance, int width, int height)
  * -------------------------------------------- */
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, int showCmd)
 {
+    int error;
+
     MSG msg;
     RECT invalidRect;
     HWND hwnd = initialize_window(instance, WIDTH, HEIGHT);
-	initialize_renderer(hwnd, WIDTH, HEIGHT);
+    if (!hwnd) return 1;
+
+	error = initialize_renderer(hwnd, WIDTH, HEIGHT);
+    if (error) return error;
 	
     GetClientRect(hwnd, &invalidRect);
     ShowWindow(hwnd, SW_NORMAL);
