@@ -173,7 +173,7 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
-				RelativePath=".\testprogram.c"
+				RelativePath=".\program.c"
 				>
 			</File>
 		</Filter>
@@ -190,21 +190,12 @@
 				RelativePath=".\sse3d_dragon.h"
 				>
 			</File>
-			<File
-				RelativePath=".\sse3d_window.h"
-				>
-			</File>
 		</Filter>
 		<Filter
 			Name="Resource Files"
 			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav"
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
-			<File
-				RelativePath=".\dragon.txt"
-				DeploymentContent="true"
-				>
-			</File>
 		</Filter>
 	</Files>
 	<Globals>

@@ -25,12 +25,8 @@
 #define naked __declspec(naked)
 #endif
 
-#ifndef FRAMEBUFFER_WIDTH
-#define FRAMEBUFFER_WIDTH 800
-#endif
-
-#ifndef FRAMEBUFFER_HEIGHT
-#define FRAMEBUFFER_HEIGHT 480
+#ifndef M_PI
+#define M_PI 3.141592653589793f
 #endif
 
 typedef struct
@@ -72,15 +68,33 @@ typedef struct
     };
 } sse3d_matrix_t;
 
-typedef void (*pixelshaderproc)(unsigned char *color, sse3d_vector_t *normal, float depth);
+
+
+typedef void (*pixelshaderproc)(void* params, unsigned char *color, sse3d_vector_t *normal, float depth);
 
 typedef struct
 {
+	sse3d_vector_t light_position;
+	sse3d_vector_t light_target;
+	sse3d_vector_t light_direction;
+	sse3d_matrix_t model_matrix;
+	sse3d_matrix_t projection_matrix;
+
 	unsigned short  width, height;
-	unsigned float  *z_buffer;
 	unsigned int    *p_buffer;
+    float           *z_buffer;
+	
 	pixelshaderproc p_shader;
-} sse3d_render_ctx_t;
+} sse3d_render_params_t;
+
+typedef struct
+{
+	int				nr_vertices, nr_normals, nr_indices;
+	sse3d_vector_t* vertices;
+	sse3d_vector_t* normals;
+	int*			indices;
+
+} sse3d_model_t;
 
 #pragma endregion
 
@@ -481,7 +495,22 @@ void sse3d_translation_matrix(sse3d_matrix_t *dst, float dx, float dy, float dz)
 
 #pragma endregion
 
-void sse3d_draw_triangle(sse3d_render_ctx_t* ctx, 
+void sse3d_clear_buffers(sse3d_render_params_t *params)
+{
+	memset(params->z_buffer, 0, sizeof(float) * params->width * params->height);
+	memset(params->p_buffer, 0, sizeof(unsigned int) * params->width * params->height);
+}
+
+#pragma region Render functions
+
+/* ---------------------------------------------------- *
+ * Draw a triangle                                      *
+ * Parameters:                                          *
+ * [params] Render parameters                           *
+ * [v(x)]   The 3 vectors for the triangle              *
+ * [n(x)]   The 3 normals for the triangle              *
+ * ---------------------------------------------------- */
+void sse3d_render_triangle(sse3d_render_params_t* params, 
                          sse3d_vector_t *v0, sse3d_vector_t *v1, sse3d_vector_t *v2, 
                          sse3d_vector_t *n0, sse3d_vector_t *n1, sse3d_vector_t *n2)
 {
@@ -491,7 +520,7 @@ void sse3d_draw_triangle(sse3d_render_ctx_t* ctx,
     aligned sse3d_vector_t  m128_y          = {0, 0, 0, 0};
     aligned sse3d_vector_t  span_from       = {0, 0, 0, 0}, span_to      = {0, 0, 0, 0};
     aligned sse3d_vector_t  normal_from     = {0, 0, 0, 0}, normal_to    = {0, 0, 0, 0};
-    aligned sse3d_vector_t  frustrum_min    = {0, 0,-1, 0}, frustrum_max = {FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT, 1, 0};
+    aligned sse3d_vector_t  frustrum_min    = {0, 0,-1, 0}, frustrum_max = {0, 0, 1, 0};
     aligned sse3d_vector_t  min, max;
 
     sse3d_vector_t *va,*vb,*vc,*na,*nb,*nc;
@@ -500,6 +529,9 @@ void sse3d_draw_triangle(sse3d_render_ctx_t* ctx,
     if (v0 == v1) return;
     if (v1 == v2) return;
     if (v2 == v0) return;
+
+    frustrum_max.x = params->width;
+    frustrum_max.y = params->height;
 
     // Calculate clipped bounding rect
     __asm
@@ -533,6 +565,11 @@ void sse3d_draw_triangle(sse3d_render_ctx_t* ctx,
     // for each scanline from min.y to max.y
     for (y = (float)floor(min.y) + 0.5f; y < max.y; y += 1.0f)
     {
+        aligned sse3d_vector_t currnormal;
+        unsigned char *p_buffer_ptr;
+        float *z_buffer_ptr;
+        float dx, dz;
+
         switch (((v0->y < y) << 2) | ((v1->y < y) << 1) | ((v2->y < y) << 0))
         {
             case 0x0:
@@ -605,47 +642,68 @@ void sse3d_draw_triangle(sse3d_render_ctx_t* ctx,
             movaps [normal_to], xmm0
         }
 
+        z_buffer_ptr = (float*)         (params->z_buffer + ((int)y) * params->width);
+        p_buffer_ptr = (unsigned char*) (params->p_buffer + ((int)y) * params->width);
+        dx = span_to.x - span_from.x;
+        dz = span_to.z - span_from.z;
+
+        for (i=(int)span_from.x; i<(int)span_to.x; i++)
         {
+            float interpolation = (i - (int)span_from.x) / dx;
+            float depth = interpolation * dz + span_from.z;
+            
+            if (depth > 1 || depth < -1) continue;
+            else depth = (depth + 1.0f) / 2.0f;
+            
+            if (depth > z_buffer_ptr[i]) 
             {
-                float *z_buffer_ptr = (float*) (ctx->z_buffer + ((int)y) * ctx->width);
-                unsigned char  *n_buffer_ptr = (unsigned char*)  (ctx->p_buffer + ((int)y) * ctx->width);
+                z_buffer_ptr[i] = depth;
 
-                float dx = span_to.x - span_from.x;
-                float dz = span_to.z - span_from.z;
-                aligned sse3d_vector_t currnormal;
-                for (i=(int)span_from.x; i<(int)span_to.x; i++)
+				currnormal.x = (normal_from.x + (normal_to.x - normal_from.x) * interpolation);
+                currnormal.y = (normal_from.y + (normal_to.y - normal_from.y) * interpolation);
+                currnormal.z = (normal_from.z + (normal_to.z - normal_from.z) * interpolation);
+				currnormal.w = 0;
+                sse3d_normalize_vectors(&currnormal,&currnormal, 1);
+				
+                if (params->p_shader) params->p_shader(params, p_buffer_ptr + i*4, &currnormal, depth);
+                else
                 {
-                    float interpolation = (i - (int)span_from.x) / dx;
-                    float depth = interpolation * dz + span_from.z;
-                    
-                    if (depth>1) continue;
-                    if (depth<-1) continue;
-                    
-                    depth+= 1;
-                    depth/=2;
-                    
-                    if (depth > z_buffer_ptr[i]) 
-                    {
-						currnormal.x = (normal_from.x + (normal_to.x - normal_from.x) * interpolation);
-                        currnormal.y = (normal_from.y + (normal_to.y - normal_from.y) * interpolation);
-                        currnormal.z = (normal_from.z + (normal_to.z - normal_from.z) * interpolation);
-						currnormal.w = 0;
-                        sse3d_normalize_vectors(&currnormal,&currnormal, 1);
-						
-                        z_buffer_ptr[i] = depth;
-
-                        if (ctx->p_shader) ctx->p_shader(n_buffer_ptr + i*4, &currnormal, depth);
-                        else
-                        {
-						    n_buffer_ptr[i*4 + 0] = 0xFF;
-                            n_buffer_ptr[i*4 + 1] = 0xFF;
-                            n_buffer_ptr[i*4 + 2] = 0xFF;
-                        }
-                    }
+				    p_buffer_ptr[i*4 + 0] = 0xFF;
+                    p_buffer_ptr[i*4 + 1] = 0xFF;
+                    p_buffer_ptr[i*4 + 2] = 0xFF;
                 }
             }
         }
     }
 }
+
+/* ---------------------------------------------------- *
+ * Draw a model                                         *
+ * Parameters:                                          *
+ * [params] Render parameters                           *
+ * [model]  The model to draw                           *
+ * ---------------------------------------------------- */
+void sse3d_render_model(sse3d_render_params_t *params, sse3d_model_t *model)
+{
+	int i, *indices;
+	aligned sse3d_matrix_t model_projection;
+
+	sse3d_vector_t* t_vertices = (sse3d_vector_t*) aligned_malloc(sizeof(sse3d_vector_t) * model->nr_vertices);
+	sse3d_vector_t* t_normals  = (sse3d_vector_t*) aligned_malloc(sizeof(sse3d_vector_t) * model->nr_normals);
+	
+	sse3d_multiply_vectors(t_normals, &params->model_matrix, model->normals, model->nr_normals);
+	sse3d_multiply_matrix(&model_projection, &params->projection_matrix, &params->model_matrix);
+	sse3d_multiply_vectors(t_vertices, &model_projection, model->vertices, model->nr_vertices);
+	
+	sse3d_prepare_render_vectors(t_vertices, model->nr_vertices);
+
+	for (i=0, indices = model->indices; i < model->nr_indices; i+=6, indices+=6)
+	{
+		sse3d_render_triangle(params, t_vertices + indices[0], t_vertices + indices[1], t_vertices + indices[2],
+							  t_normals + indices[3], t_normals + indices[4], t_normals + indices[5]);
+	}
+}
+
+#pragma endregion
 
 #endif
