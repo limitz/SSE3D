@@ -706,6 +706,9 @@ void sse3d_render_model(sse3d_render_params_t *params, sse3d_model_t *model)
         sse3d_render_triangle(params, t_vertices + indices[0], t_vertices + indices[1], t_vertices + indices[2],
                               t_normals + indices[3], t_normals + indices[4], t_normals + indices[5]);
     }
+    
+    aligned_free(t_vertices);
+    aligned_free(t_normals);
 }
 
 void sse3d_clear_buffers(sse3d_render_params_t *params)
