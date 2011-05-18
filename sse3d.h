@@ -1,9 +1,15 @@
+/* ------------------------------------------ *
+ * SSE3D - 3D renderer using SSE instructions *
+ * ------------------------------------------ *
+ * Author: Eddy Pronk                         *
+ * Date:   18 May 2011                        *
+ * ------------------------------------------ */
+
 #pragma once
 
 #ifndef SSE3D
 #define SSE3D
 
-#include <windows.h>
 #include <math.h>
 #include <string.h>
 
@@ -115,6 +121,10 @@ void sse3d_rotation_y_matrix(sse3d_matrix_t*, float);
 void sse3d_rotation_z_matrix(sse3d_matrix_t*, float);
 void sse3d_scale_matrix(sse3d_matrix_t*, float, float, float);
 void sse3d_translation_matrix(sse3d_matrix_t*, float, float, float);
+
+void sse3d_render_model(sse3d_render_params_t*, sse3d_model_t*);
+void sse3d_clear_buffers(sse3d_render_params_t*);
+void sse3d_render_triangle(sse3d_render_params_t*, sse3d_vector_t*, sse3d_vector_t*, sse3d_vector_t*, sse3d_vector_t*, sse3d_vector_t*, sse3d_vector_t*);
 
 #pragma endregion
 
@@ -495,12 +505,6 @@ void sse3d_translation_matrix(sse3d_matrix_t *dst, float dx, float dy, float dz)
 
 #pragma endregion
 
-void sse3d_clear_buffers(sse3d_render_params_t *params)
-{
-	memset(params->z_buffer, 0, sizeof(float) * params->width * params->height);
-	memset(params->p_buffer, 0, sizeof(unsigned int) * params->width * params->height);
-}
-
 #pragma region Render functions
 
 /* ---------------------------------------------------- *
@@ -510,7 +514,7 @@ void sse3d_clear_buffers(sse3d_render_params_t *params)
  * [v(x)]   The 3 vectors for the triangle              *
  * [n(x)]   The 3 normals for the triangle              *
  * ---------------------------------------------------- */
-void sse3d_render_triangle(sse3d_render_params_t* params, 
+void sse3d_render_triangle(sse3d_render_params_t *params, 
                          sse3d_vector_t *v0, sse3d_vector_t *v1, sse3d_vector_t *v2, 
                          sse3d_vector_t *n0, sse3d_vector_t *n1, sse3d_vector_t *n2)
 {
@@ -702,6 +706,12 @@ void sse3d_render_model(sse3d_render_params_t *params, sse3d_model_t *model)
 		sse3d_render_triangle(params, t_vertices + indices[0], t_vertices + indices[1], t_vertices + indices[2],
 							  t_normals + indices[3], t_normals + indices[4], t_normals + indices[5]);
 	}
+}
+
+void sse3d_clear_buffers(sse3d_render_params_t *params)
+{
+	memset(params->z_buffer, 0, sizeof(float) * params->width * params->height);
+	memset(params->p_buffer, 0, sizeof(unsigned int) * params->width * params->height);
 }
 
 #pragma endregion
