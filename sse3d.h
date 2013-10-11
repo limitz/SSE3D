@@ -714,7 +714,8 @@ void sse3d_render_model(sse3d_render_params_t *params, sse3d_model_t *model)
 void sse3d_clear_buffers(sse3d_render_params_t *params)
 {
     memset(params->z_buffer, 0, sizeof(float) * params->width * params->height);
-    memset(params->p_buffer, 0, sizeof(unsigned int) * params->width * params->height);
+//    memset(params->p_buffer, 0, sizeof(unsigned int) * params->width * params->height);
+    memset(params->p_buffer, 1, sizeof(unsigned int) * params->width * params->height); // because HBRUSH 0 is transparent
 }
 
 #pragma endregion
